@@ -17,17 +17,35 @@ def load_data(observed_path: str, forecasts_path: str) -> tuple[pd.DataFrame, pd
 
 def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[xr.DataArray, xr.DataArray]:
     # The samples must be named "member" and the outcome variable needs to be named the same in xs.crps_ensemble()
-    predictions = predictions.rename(columns = {"draw": "member", "step_pred_": "outcome"})
-    observed = observed.rename(columns = {"ln_ged_sb_dep": "outcome"})
+    
+    predictions = predictions.reset_index()
+    observed = observed.reset_index()
+
+    predictions = predictions.rename(columns = {"draw": "member", "prediction": "outcome"})
+    observed = observed.rename(columns = {"ged_sb": "outcome"})
+
+    
 
     # Expand the actuals to cover all steps used in the prediction file
     unique_steps = predictions["step"].unique()
-    observed["step"] = [unique_steps for i in observed.index]
-    observed = observed.explode("step")
+    if(len(unique_steps) > 1):
+        observed["step"] = [unique_steps for i in observed.index]
+        observed = observed.explode("step")
+    elif(len(unique_steps) == 1):
+        observed["step"] = unique_steps[0]
+    else: 
+        TypeError("Predictions does not contain unique steps.")
 
     # Set up multi-index to easily convert to xarray
-    predictions = predictions.set_index(['month_id', 'country_id', 'step', 'member'])
-    observed = observed.set_index(['month_id', 'country_id', 'step'])
+    if "priogrid_gid" in predictions.columns:
+        predictions = predictions.set_index(['month_id', 'priogrid_gid', 'step', 'member'])
+        observed = observed.set_index(['month_id', 'priogrid_gid', 'step'])
+    elif "country_id" in predictions.columns:
+        predictions = predictions.set_index(['month_id', 'country_id', 'step', 'member'])
+        observed = observed.set_index(['month_id', 'country_id', 'step'])
+    else:
+        TypeError("priogrid_gid or country_id must be an identifier")
+    
 
     # Convert to xarray
     xpred = predictions.to_xarray()
@@ -36,7 +54,10 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[x
 
 def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray) -> pd.DataFrame:
     # Calculate average crps for each step (so across the other dimensions)
-    crps_ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
+    if "priogrid_gid" in predictions.coords:
+        crps_ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
+    elif "country_id" in predictions.coords:
+        crps_ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
     metrics = crps_ensemble.to_dataframe()
     metrics = metrics.rename(columns = {"outcome": "crps"})
     return metrics
