@@ -8,3 +8,7 @@
 # ignore ALL files in ANY directory named:
 memos/
 exploration_pickle/
+Untitled.ipynb 
+
+# ignore this irrelevant HH file...
+Data_for_Idris.ipynb
