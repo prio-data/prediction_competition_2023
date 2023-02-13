@@ -1,7 +1,16 @@
+from __future__ import annotations
 import numpy as np
 
+# https://github.com/xarray-contrib/xskillscore/blob/main/xskillscore/core/types.py
+from typing import List, Union
+import xarray as xr
 
-def ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_max=np.inf, round_values=False, axis=-1):
+XArray = Union[xr.Dataset, xr.DataArray]
+# XArray = xr.Dataset | xr.DataArray # raises error during build: TypeError: unsupported operand type(s) for |: 'ABCMeta' and 'type'
+Dim = Union[List[str], str]
+# Dim = List[str] | str
+
+def _ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_max=np.inf, round_values=False, axis=-1):
     """
     This implements the Ensemble (Ranked) Ignorance Score from the easyVerification R-package in Python. Also inspired by properscoring.crps_ensemble(),
     and has interface that works with the xskillscore package.
@@ -90,7 +99,7 @@ def ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_ma
         return(ign)
     }
     """
-    assert type in [0, 1, 2, 3, 4, 5]
+    assert type in [0, 1, 2, 3, 4, 5], f"Type must be integer between 0-5."
 
 
     if round_values:
@@ -140,3 +149,70 @@ def ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_ma
         ign_score[forecast_range_overlap == False] = ign_max
 
     return ign_score
+
+def _probabilistic_broadcast(
+    observations: XArray, forecasts: XArray, member_dim: str = "member"
+) -> XArray:
+    """Broadcast dimension except for member_dim in forecasts."""
+    observations = observations.broadcast_like(
+        forecasts.isel({member_dim: 0}, drop=True)
+    )
+    forecasts = forecasts.broadcast_like(observations)
+    return observations, forecasts
+
+def ign_ensemble(
+    observations: XArray,
+    forecasts: XArray,
+    member_weights: XArray = None,
+    member_dim: str = "member",
+    dim: Dim = None,
+    type: int = 2, 
+    nmax: int = 10000, 
+    ign_max: int = np.inf, 
+    round_values: bool = False,
+    keep_attrs: bool = False,
+) -> XArray:
+    """Continuous Ranked Probability Score with the ensemble distribution.
+    Parameters
+    ----------
+    observations : xarray.Dataset or xarray.DataArray
+        The observations or set of observations.
+    forecasts : xarray.Dataset or xarray.DataArray
+        Forecast with required member dimension ``member_dim``.
+    member_weights : xarray.Dataset or xarray.DataArray
+        If provided, the CRPS is calculated exactly with the assigned
+        probability weights to each forecast. Weights should be positive,
+        but do not need to be normalized. By default, each forecast is
+        weighted equally.
+    issorted : bool, optional
+        Optimization flag to indicate that the elements of `ensemble` are
+        already sorted along `axis`.
+    member_dim : str, optional
+        Name of ensemble member dimension. By default, 'member'.
+    dim : str or list of str, optional
+        Dimension over which to compute mean after computing ``ign_ensemble``.
+        Defaults to None implying averaging over all dimensions.
+    keep_attrs : bool
+        If True, the attributes (attrs) will be copied
+        from the first input to the new one.
+        If False (default), the new object will
+        be returned without attributes.
+    Returns
+    -------
+    xarray.Dataset or xarray.DataArray
+    """
+    observations, forecasts = _probabilistic_broadcast(
+        observations, forecasts, member_dim=member_dim
+    )
+    res = xr.apply_ufunc(
+        _ensemble_ignorance_score,
+        observations,
+        forecasts,
+        input_core_dims=[[], [member_dim]],
+        kwargs={"axis": -1, "type": 2, "nmax": 25000, "ign_max": np.inf, "round_values": True},
+        dask="parallelized",
+        output_dtypes=[float],
+        keep_attrs=keep_attrs,
+    )
+    
+    return res.mean(dim, keep_attrs=keep_attrs)
