@@ -132,8 +132,7 @@ def ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_ma
 
     probs = (x + 1 - a) / (n + 1 - a)
 
-    i, j = np.meshgrid(observations, np.arange(0, observations.ndim, 1))
-    ign_score = -np.log2(probs[i, j].squeeze())
+    ign_score = -np.log2(np.diag(probs[observations]))
 
     if(ign_max != None):
         forecast_range_overlap = (forecasts.max(axis=1) >= observations) & (
