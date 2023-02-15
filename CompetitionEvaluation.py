@@ -8,11 +8,14 @@ from pathlib import Path
 import xarray as xr
 import xskillscore as xs
 
+from IgnoranceScore import ensemble_ignorance_score_xskillscore
+
 
 def load_data(observed_path: str, forecasts_path: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     predictions = pq.read_table(forecasts_path)
     predictions = predictions.to_pandas()
-    observed = pd.read_csv(observed_path)
+    observed = pq.read_table(observed_path)
+    observed = observed.to_pandas()
     return observed, predictions
 
 def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[xr.DataArray, xr.DataArray]:
@@ -52,14 +55,23 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[x
     xobserved = observed.to_xarray()
     return xobserved, xpred
 
-def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray) -> pd.DataFrame:
+def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str, **kwargs) -> pd.DataFrame:
     # Calculate average crps for each step (so across the other dimensions)
     if "priogrid_gid" in predictions.coords:
-        crps_ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
+        if metric == "crps":
+            ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
+        elif metric == "ign":
+            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'priogrid_gid'], **kwargs)
+        else: 
+            TypeError("metric must be 'crps' or 'ign'.")
+
     elif "country_id" in predictions.coords:
-        crps_ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
-    metrics = crps_ensemble.to_dataframe()
-    metrics = metrics.rename(columns = {"outcome": "crps"})
+        if metric == "crps":
+            ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
+        elif metric == "ign":
+            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
+    metrics = ensemble.to_dataframe()
+    metrics = metrics.rename(columns = {"outcome": metric})
     return metrics
 
 
@@ -79,7 +91,7 @@ def main():
 
     observed, predictions = load_data(args.o, args.p)
     observed, predictions = structure_data(observed, predictions)
-    metrics = calculate_metrics(observed, predictions)
+    metrics = calculate_metrics(observed, predictions, metric = "crps")
     if(args.f != None):
         write_metrics_to_file(metrics, args.f)
     else:
