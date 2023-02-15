@@ -1,5 +1,6 @@
 from __future__ import annotations
 import numpy as np
+from collections import Counter
 
 # https://github.com/xarray-contrib/xskillscore/blob/main/xskillscore/core/types.py
 from typing import List, Union
@@ -10,7 +11,14 @@ XArray = Union[xr.Dataset, xr.DataArray]
 Dim = Union[List[str], str]
 # Dim = List[str] | str
 
-def _ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_max=np.inf, round_values=False, axis=-1):
+def _ensemble_ignorance_score(predictions, n, prob_type, observed):
+        c = Counter(predictions)
+        # n = c.total() : this works from python version 3.10, avoid this for a while.
+        a = [0, 0.3, 1/3, 1, 1/2, 2/5][prob_type]
+        prob = (c[observed] + 1 - a) / (n + 1 - a) # if counter[observed] is 0, then this returns correctly
+        return -np.log2(prob)
+
+def ensemble_ignorance_score(observations, forecasts, prob_type = 2, ign_max = None, round_values = False, axis = -1, bins = None, low_bin = 0, high_bin = 10000):
     """
     This implements the Ensemble (Ranked) Ignorance Score from the easyVerification R-package in Python. Also inspired by properscoring.crps_ensemble(),
     and has interface that works with the xskillscore package.
@@ -27,8 +35,7 @@ def _ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_m
         axis corresponding to the ensemble). If forecasts has the same shape as
         observations, the forecasts are treated as deterministic. Missing
         values (NaN) are ignored.
-    type:
-    nmax: max possible observation (setting this higher will result in poorer performance, but more accurate measurement).
+    prob_type:
     ign_max: if the observations are outside of the range of the forecast distribution, Ignorance Score is not well defined. Use this parameter to set a maximum score. If None, then use probability of the closest forecast member.
     round_values: converts input data to integers by rounding.
     axis : int, optional
@@ -99,7 +106,7 @@ def _ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_m
         return(ign)
     }
     """
-    assert type in [0, 1, 2, 3, 4, 5], f"Type must be integer between 0-5."
+    assert prob_type in [0, 1, 2, 3, 4, 5], f"prob_type must be integer between 0-5."
 
 
     if round_values:
@@ -117,37 +124,60 @@ def _ensemble_ignorance_score(observations, forecasts, type=2, nmax=10000, ign_m
                         'shapes or matching shapes except along `axis=%s`'
                         % axis)
 
-    assert forecasts.dtype == int,  f"Forecasts must be integers."
-    assert observations.dtype == int,  f"Observations must be integers."
+    assert np.issubdtype(forecasts.dtype, np.integer),  f"Forecasts must be integers."
+    assert np.issubdtype(observations.dtype, np.integer),  f"Observations must be integers."
 
     assert np.all(forecasts >= 0), f"Forecasts must be positive integers."
-    assert np.all(
-        observations >= 0), f"Observations must be positive integers."
-
-    assert np.any(
-        observations > nmax) == False, f"Larger observed values than nmax. Please increase nmax."
+    assert np.all(observations >= 0), f"Observations must be positive integers."
 
     if observations.shape == forecasts.shape:
         # exact prediction yields 0 ign
         ign_score = np.array(observations != forecasts, dtype=float)
-        ign_score[ign_score > 0] = ign_max  # wrong prediction yields ign_max
+        if ign_max == None:
+            ign_score[ign_score > 0] = np.inf  # wrong prediction yields the maximum error
+        else:    
+            ign_score[ign_score > 0] = ign_max  # wrong prediction yields the user defined maximum error
         return ign_score  # and we are done
 
-    forecasts_categorical = np.eye(N=nmax + 1, dtype=bool)[forecasts]
-    x = forecasts_categorical.sum(axis=1).T
+    
+    n = forecasts.shape[-1]
 
-    a = [0, 0.3, 1/3, 1, 1/2, 2/5][type]
-    n = forecasts.shape[1]  # sum over ensembles
+    if bins != None:
+        assert isinstance(bins, (int, list)), f"bins must be an integer or a list with floats"
+        if isinstance(bins, int):
+            assert bins > 0, f"bins must be an integer above 0."
 
-    probs = (x + 1 - a) / (n + 1 - a)
+        def digitize_minus_one(x, bins, right=False):
+            return np.digitize(x, bins, right) - 1
 
-    ign_score = -np.log2(np.diag(probs[observations]))
+        edges = np.histogram_bin_edges(forecasts[..., :], bins = bins, range = (low_bin, high_bin))
 
-    if(ign_max != None):
-        forecast_range_overlap = (forecasts.max(axis=1) >= observations) & (
-            forecasts.min(axis=1) <= observations)
-        ign_score[forecast_range_overlap == False] = ign_max
+        binned_forecasts =  np.apply_along_axis(digitize_minus_one, axis = 1, arr = forecasts, bins = edges)
+        #prediction_counts = [(Counter(binned_forecasts[..., :])) for i in range(0, binned_forecasts.shape[0], 1)] # count unique predictions
 
+        edges = np.histogram_bin_edges(forecasts[0, :], bins = bins, range = (low_bin, high_bin))
+        binned_observations = digitize_minus_one(observations, edges)
+
+        ign_score = np.empty_like(binned_observations, dtype = float)
+        for index in np.ndindex(ign_score.shape):
+            if (ign_max != None) & (binned_forecasts[index].max() >= binned_observations[index]) & (binned_forecasts[index].min() <= binned_observations[index]):
+                ign_score[index] = ign_max
+            else:
+                ign_score[index] = _ensemble_ignorance_score(binned_forecasts[index], n, prob_type, binned_observations[index])
+            
+        #ign_score = [_ensemble_ignorance_score(counter, n, prob_type, binned_observations[i]) for i, counter in enumerate(prediction_counts)]
+    else:
+        ign_score = np.empty_like(observations, dtype = float)
+        for index in np.ndindex(ign_score.shape):
+            if (ign_max != None) & (forecasts[index].max() >= observations[index]) & (forecasts[index].min() <= observations[index]):
+                ign_score[index] = ign_max
+            else:
+                ign_score[index] = _ensemble_ignorance_score(forecasts[index], n, prob_type, observations[index])
+            
+
+    #ign_score = [_ensemble_ignorance_score(counter, n, prob_type, observations[i]) for i, counter in enumerate(prediction_counts)]
+    #ign_score = np.array(ign_score, dtype=float)
+    
     return ign_score
 
 def _probabilistic_broadcast(
@@ -160,17 +190,14 @@ def _probabilistic_broadcast(
     forecasts = forecasts.broadcast_like(observations)
     return observations, forecasts
 
-def ign_ensemble(
+def ensemble_ignorance_score_xskillscore(
     observations: XArray,
     forecasts: XArray,
     member_weights: XArray = None,
     member_dim: str = "member",
     dim: Dim = None,
-    type: int = 2, 
-    nmax: int = 10000, 
-    ign_max: int = np.inf, 
-    round_values: bool = False,
     keep_attrs: bool = False,
+    **kwargs
 ) -> XArray:
     """Continuous Ranked Probability Score with the ensemble distribution.
     Parameters
@@ -179,14 +206,6 @@ def ign_ensemble(
         The observations or set of observations.
     forecasts : xarray.Dataset or xarray.DataArray
         Forecast with required member dimension ``member_dim``.
-    member_weights : xarray.Dataset or xarray.DataArray
-        If provided, the CRPS is calculated exactly with the assigned
-        probability weights to each forecast. Weights should be positive,
-        but do not need to be normalized. By default, each forecast is
-        weighted equally.
-    issorted : bool, optional
-        Optimization flag to indicate that the elements of `ensemble` are
-        already sorted along `axis`.
     member_dim : str, optional
         Name of ensemble member dimension. By default, 'member'.
     dim : str or list of str, optional
@@ -205,11 +224,11 @@ def ign_ensemble(
         observations, forecasts, member_dim=member_dim
     )
     res = xr.apply_ufunc(
-        _ensemble_ignorance_score,
+        ensemble_ignorance_score,
         observations,
         forecasts,
         input_core_dims=[[], [member_dim]],
-        kwargs={"axis": -1, "type": 2, "nmax": 25000, "ign_max": np.inf, "round_values": True},
+        kwargs=kwargs,
         dask="parallelized",
         output_dtypes=[float],
         keep_attrs=keep_attrs,

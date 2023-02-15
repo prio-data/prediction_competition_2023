@@ -8,7 +8,7 @@ from pathlib import Path
 import xarray as xr
 import xskillscore as xs
 
-from IgnoranceScore import ign_ensemble
+from IgnoranceScore import ensemble_ignorance_score_xskillscore
 
 
 def load_data(observed_path: str, forecasts_path: str) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -55,13 +55,13 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[x
     xobserved = observed.to_xarray()
     return xobserved, xpred
 
-def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str) -> pd.DataFrame:
+def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str, **kwargs) -> pd.DataFrame:
     # Calculate average crps for each step (so across the other dimensions)
     if "priogrid_gid" in predictions.coords:
         if metric == "crps":
             ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
         elif metric == "ign":
-            ensemble = ign_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
+            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'priogrid_gid'], **kwargs)
         else: 
             TypeError("metric must be 'crps' or 'ign'.")
 
@@ -69,7 +69,7 @@ def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric:
         if metric == "crps":
             ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
         elif metric == "ign":
-            ensemble = ign_ensemble(observed, predictions, dim=['month_id', 'country_id'])
+            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
     metrics = ensemble.to_dataframe()
     metrics = metrics.rename(columns = {"outcome": metric})
     return metrics
