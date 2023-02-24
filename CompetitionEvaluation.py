@@ -97,22 +97,21 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_colum
     return xobserved, xpred
 
 def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str, **kwargs) -> pd.DataFrame:
+
+    assert metric in ['crps', 'ign'], f'Metric: "{metric}" must be "crps" or "ign".'
+
     # Calculate average crps for each step (so across the other dimensions)
     if "priogrid_gid" in predictions.coords:
         if metric == "crps":
             ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
-        elif metric == "ign":
+        else:
             ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'priogrid_gid'], **kwargs)
-        else: 
-            TypeError("metric must be 'crps' or 'ign'.")
 
     elif "country_id" in predictions.coords:
         if metric == "crps":
             ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
-        elif metric == "ign":
+        else:
             ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
-        else: 
-            TypeError("metric must be 'crps' or 'ign'.")
     if not ensemble.dims: # dicts return False if empty, dims is empty if only one value.
         metrics = pd.DataFrame(ensemble.to_array().to_numpy(), columns = ["outcome"])
     else:
