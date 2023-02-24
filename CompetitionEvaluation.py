@@ -111,6 +111,8 @@ def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric:
             ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
         elif metric == "ign":
             ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
+        else: 
+            TypeError("metric must be 'crps' or 'ign'.")
     if not ensemble.dims: # dicts return False if empty, dims is empty if only one value.
         metrics = pd.DataFrame(ensemble.to_array().to_numpy(), columns = ["outcome"])
     else:
