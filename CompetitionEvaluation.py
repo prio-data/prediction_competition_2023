@@ -2,7 +2,8 @@ import argparse
 import pandas as pd
 import pyarrow.parquet as pq
 from zipfile import ZipFile
-from pathlib import Path
+import numpy as np
+#from pathlib import Path
 
 # mamba install -c conda-forge xskillscore
 import xarray as xr
@@ -18,34 +19,64 @@ def load_data(observed_path: str, forecasts_path: str) -> tuple[pd.DataFrame, pd
     observed = observed.to_pandas()
     return observed, predictions
 
-def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[xr.DataArray, xr.DataArray]:
+def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_column_name: str = "draw", data_column_name: str = "prediction", axis: int = -1) -> tuple[xr.DataArray, xr.DataArray]:
     # The samples must be named "member" and the outcome variable needs to be named the same in xs.crps_ensemble()
     
     predictions = predictions.reset_index()
     observed = observed.reset_index()
 
-    predictions = predictions.rename(columns = {"draw": "member", "prediction": "outcome"})
-    observed = observed.rename(columns = {"ged_sb": "outcome"})
+    if "index" in observed.columns:
+        observed = observed.drop(columns = ["index"])
+    if "index" in predictions.columns:
+        predictions = predictions.drop(columns = ["index"])
 
-    
+    assert "month_id" in observed.columns,  f"'month_id' column not found in observed data."
+    assert "month_id" in predictions.columns,  f"'month_id' column not found in predictions data."
+
+    assert observed.columns.isin(['country_id','priogrid_gid']).any(),  f"'country_id'/'priogrid_gid' column not found in observed data."
+    assert predictions.columns.isin(['country_id','priogrid_gid']).any(),  f"'country_id'/'priogrid_gid' column not found in predictions data."
+
+    assert draw_column_name in predictions.columns, f"{draw_column_name} not in predictions data"
+
+    assert data_column_name in predictions.columns, f"{data_column_name} not in predictions data"
+    assert data_column_name in observed.columns, f"{data_column_name} not in observed data"
+
+
+    assert len(observed.columns) == 3, f"Observed data should only be three variables: 'month_id', 'country_id' (or 'priogrid_gid'), and {data_column_name}."
+    assert len(predictions.columns) == 4, f"Predictions data should only be four variables: 'month_id', 'country_id' (or 'priogrid_gid'), {draw_column_name}, and {data_column_name}."
+
+    nmonths = len(observed["month_id"].unique())
+    nunits =  len(observed["country_id"].unique())
+    nmembers = len(predictions[draw_column_name].unique())
+
+    assert len(predictions.index) == nmonths*nunits*nmembers, f"Predictions data is not a balanced dataset with nobs = unique_months * unique_units * unique_{draw_column_name}."
+    assert len(observed.index) == nmonths*nunits, f"Observed data is not a balanced dataset with nobs = unique_months * unique_units."
+
+    # To simplify internal affairs:
+    predictions = predictions.rename(columns = {draw_column_name: "member", data_column_name: "outcome"})
+    observed = observed.rename(columns = {data_column_name: "outcome"})
 
     # Expand the actuals to cover all steps used in the prediction file
-    unique_steps = predictions["step"].unique()
-    if(len(unique_steps) > 1):
-        observed["step"] = [unique_steps for i in observed.index]
-        observed = observed.explode("step")
-    elif(len(unique_steps) == 1):
-        observed["step"] = unique_steps[0]
-    else: 
-        TypeError("Predictions does not contain unique steps.")
+    #unique_steps = predictions["step"].unique()
+    #if(len(unique_steps) > 1):
+    #    observed["step"] = [unique_steps for i in observed.index]
+    #    observed = observed.explode("step")
+    #elif(len(unique_steps) == 1):
+    #    observed["step"] = unique_steps[0]
+    #else: 
+    #    TypeError("Predictions does not contain unique steps.")
 
     # Set up multi-index to easily convert to xarray
     if "priogrid_gid" in predictions.columns:
-        predictions = predictions.set_index(['month_id', 'priogrid_gid', 'step', 'member'])
-        observed = observed.set_index(['month_id', 'priogrid_gid', 'step'])
+        #predictions = predictions.set_index(['month_id', 'priogrid_gid', 'step', 'member'])
+        predictions = predictions.set_index(['month_id', 'priogrid_gid', 'member'])
+        #observed = observed.set_index(['month_id', 'priogrid_gid', 'step'])
+        observed = observed.set_index(['month_id', 'priogrid_gid'])
     elif "country_id" in predictions.columns:
-        predictions = predictions.set_index(['month_id', 'country_id', 'step', 'member'])
-        observed = observed.set_index(['month_id', 'country_id', 'step'])
+        #predictions = predictions.set_index(['month_id', 'country_id', 'step', 'member'])
+        predictions = predictions.set_index(['month_id', 'country_id', 'member'])
+        #observed = observed.set_index(['month_id', 'country_id', 'step'])
+        observed = observed.set_index(['month_id', 'country_id'])
     else:
         TypeError("priogrid_gid or country_id must be an identifier")
     
@@ -53,6 +84,16 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame) -> tuple[x
     # Convert to xarray
     xpred = predictions.to_xarray()
     xobserved = observed.to_xarray()
+
+    assert np.issubdtype(xpred["outcome"].dtype, np.integer),  f"Forecasts not integers when converted to xarray. Probably not balanced set, or missing data in forecasts."    
+    assert np.issubdtype(xobserved["outcome"].dtype, np.integer),  f"Observations not integers when converted to xarray. Probably not balanced set, or missing data in forecasts."
+
+    odim = dict(xobserved.dims)
+    pdim = dict(xpred.dims)
+    if "member" in pdim:
+        del pdim["member"]
+    assert odim == pdim, f"observed and predictions must have matching shapes or matching shapes except the '{draw_column_name}' dimension"
+
     return xobserved, xpred
 
 def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str, **kwargs) -> pd.DataFrame:
@@ -70,7 +111,10 @@ def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric:
             ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
         elif metric == "ign":
             ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
-    metrics = ensemble.to_dataframe()
+    if not ensemble.dims: # dicts return False if empty, dims is empty if only one value.
+        metrics = pd.DataFrame(ensemble.to_array().to_numpy(), columns = ["outcome"])
+    else:
+        metrics = ensemble.to_dataframe()
     metrics = metrics.rename(columns = {"outcome": metric})
     return metrics
 
