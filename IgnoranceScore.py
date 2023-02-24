@@ -160,7 +160,7 @@ def ensemble_ignorance_score(observations, forecasts, prob_type = 2, ign_max = N
 
         ign_score = np.empty_like(binned_observations, dtype = float)
         for index in np.ndindex(ign_score.shape):
-            if (ign_max != None) & (binned_forecasts[index].max() >= binned_observations[index]) & (binned_forecasts[index].min() <= binned_observations[index]):
+            if (ign_max != None) & (not binned_forecasts[index].min() >= binned_observations[index] >= binned_forecasts[index].max()):
                 ign_score[index] = ign_max
             else:
                 ign_score[index] = _ensemble_ignorance_score(binned_forecasts[index], n, prob_type, binned_observations[index])
@@ -169,7 +169,7 @@ def ensemble_ignorance_score(observations, forecasts, prob_type = 2, ign_max = N
     else:
         ign_score = np.empty_like(observations, dtype = float)
         for index in np.ndindex(ign_score.shape):
-            if (ign_max != None) & (forecasts[index].max() >= observations[index]) & (forecasts[index].min() <= observations[index]):
+            if (ign_max != None) & (not forecasts[index].min() >= observations[index] >= forecasts[index].max()):
                 ign_score[index] = ign_max
             else:
                 ign_score[index] = _ensemble_ignorance_score(forecasts[index], n, prob_type, observations[index])
