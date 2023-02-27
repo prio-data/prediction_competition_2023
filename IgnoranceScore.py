@@ -18,6 +18,27 @@ def _ensemble_ignorance_score(predictions, n, prob_type, observed):
         prob = (c[observed] + 1 - a) / (n + 1 - a) # if counter[observed] is 0, then this returns correctly
         return -np.log2(prob)
 
+def _ensemble_ignorance_score_interpolate(predictions, n, observed):
+    # https://stackoverflow.com/questions/6518811/interpolate-nan-values-in-a-numpy-array
+    def nan_helper(y):
+        return np.isnan(y), lambda z: z.nonzero()[0]
+
+    if observed > predictions.max():
+        prob = 0
+    else:
+        c = Counter(predictions)
+        probs = np.array([c[i]/n for i in np.arange(predictions.max() + 1)])
+        probs[probs == 0] = np.NaN
+        if(predictions.min() > 0): # Do not interpolate outside of the prediction sample range
+            probs[0:predictions.min()] = 0
+        
+        nans, x = nan_helper(probs)
+        probs[nans]= np.interp(x(nans), x(~nans), probs[~nans]) # Linear interpolation of probabilities within sample range
+        
+        prob = probs[observed]
+    return -np.log2(prob) 
+
+
 def ensemble_ignorance_score(observations, forecasts, prob_type = 2, ign_max = None, round_values = False, axis = -1, bins = None, low_bin = 0, high_bin = 10000):
     """
     This implements the Ensemble (Ranked) Ignorance Score from the easyVerification R-package in Python. Also inspired by properscoring.crps_ensemble(),
@@ -163,7 +184,8 @@ def ensemble_ignorance_score(observations, forecasts, prob_type = 2, ign_max = N
             if (ign_max != None) & (not binned_forecasts[index].min() >= binned_observations[index] >= binned_forecasts[index].max()):
                 ign_score[index] = ign_max
             else:
-                ign_score[index] = _ensemble_ignorance_score(binned_forecasts[index], n, prob_type, binned_observations[index])
+                #ign_score[index] = _ensemble_ignorance_score(binned_forecasts[index], n, prob_type, binned_observations[index])
+                ign_score[index] = _ensemble_ignorance_score_interpolate(binned_forecasts[index], n, binned_observations[index])
             
         #ign_score = [_ensemble_ignorance_score(counter, n, prob_type, binned_observations[i]) for i, counter in enumerate(prediction_counts)]
     else:
@@ -172,7 +194,8 @@ def ensemble_ignorance_score(observations, forecasts, prob_type = 2, ign_max = N
             if (ign_max != None) & (not forecasts[index].min() >= observations[index] >= forecasts[index].max()):
                 ign_score[index] = ign_max
             else:
-                ign_score[index] = _ensemble_ignorance_score(forecasts[index], n, prob_type, observations[index])
+                #ign_score[index] = _ensemble_ignorance_score(forecasts[index], n, prob_type, observations[index])
+                ign_score[index] = _ensemble_ignorance_score_interpolate(binned_forecasts[index], n, binned_observations[index])
             
 
     #ign_score = [_ensemble_ignorance_score(counter, n, prob_type, observations[i]) for i, counter in enumerate(prediction_counts)]
