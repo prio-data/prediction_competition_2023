@@ -10,6 +10,7 @@ import xarray as xr
 import xskillscore as xs
 
 from IgnoranceScore import ensemble_ignorance_score_xskillscore
+from IntervalScore import mean_interval_score_xskillscore
 
 
 def load_data(observed_path: str, forecasts_path: str) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -98,20 +99,24 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_colum
 
 def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str, **kwargs) -> pd.DataFrame:
 
-    assert metric in ['crps', 'ign'], f'Metric: "{metric}" must be "crps" or "ign".'
+    assert metric in ['crps', 'ign', "mis"], f'Metric: "{metric}" must be "crps", "ign", or "mis".'
+
+    ign_args = ['prob_type', 'ign_max', 'round_values', 'axis', 'bins', 'low_bin', 'high_bin']
+    ign_dict = {k: kwargs.pop(k) for k in dict(kwargs) if k in ign_args}
+
+    interval_args = ['prediction_interval_level']
+    interval_dict = {k: kwargs.pop(k) for k in dict(kwargs) if k in interval_args}
 
     # Calculate average crps for each step (so across the other dimensions)
-    if "priogrid_gid" in predictions.coords:
-        if metric == "crps":
-            ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
-        else:
-            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'priogrid_gid'], **kwargs)
+    if metric == "crps":
+        ensemble = xs.crps_ensemble(observed, predictions, dim=list(observed.coords._names))
+    elif metric == "ign":
+        ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=list(observed.coords._names), **ign_dict)
+    elif metric == "mis":
+        ensemble = mean_interval_score_xskillscore(observed, predictions, dim=list(observed.coords._names), **interval_dict)
+    else:
+        TypeError(f'Metric: "{metric}" must be "crps", "ign", or "mis".')
 
-    elif "country_id" in predictions.coords:
-        if metric == "crps":
-            ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
-        else:
-            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
     if not ensemble.dims: # dicts return False if empty, dims is empty if only one value.
         metrics = pd.DataFrame(ensemble.to_array().to_numpy(), columns = ["outcome"])
     else:
