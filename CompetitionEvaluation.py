@@ -144,13 +144,14 @@ def main():
     parser.add_argument('-ib', metavar = 'ign-bins', nargs = "+", type = float, help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.', default = None)
     parser.add_argument('-ibl', metavar = 'max-ign', type = int, help='Set a min bin value when binning is an integer.', default = 0)
     parser.add_argument('-ibh', metavar = 'max-ign', type = int, help='Set a max bin value when binning is an integer.', default = 1000)
+    parser.add_argument('-pil', metavar = 'prediction-interval-level', type = float, help='Set prediction interval level for the interval score', default = 0.95)
     
 
     args = parser.parse_args()
 
     observed, predictions = load_data(args.o, args.p)
     observed, predictions = structure_data(observed, predictions, draw_column_name=args.sc, data_column_name = args.dc)
-    metrics = calculate_metrics(observed, predictions, metric = args.m, prob_type = args.ipt, ign_max = args.imx, bins = args.ib, low_bin = args.ibl, high_bin = args.ibh)
+    metrics = calculate_metrics(observed, predictions, metric = args.m, prob_type = args.ipt, ign_max = args.imx, bins = args.ib, low_bin = args.ibl, high_bin = args.ibh, prediction_interval_level = args.pil)
     if(args.f != None):
         write_metrics_to_file(metrics, args.f)
     else:
