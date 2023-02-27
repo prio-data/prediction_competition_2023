@@ -10,6 +10,7 @@ import xarray as xr
 import xskillscore as xs
 
 from IgnoranceScore import ensemble_ignorance_score_xskillscore
+from IntervalScore import mean_interval_score_xskillscore
 
 
 def load_data(observed_path: str, forecasts_path: str) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -97,22 +98,25 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_colum
     return xobserved, xpred
 
 def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric: str, **kwargs) -> pd.DataFrame:
-    # Calculate average crps for each step (so across the other dimensions)
-    if "priogrid_gid" in predictions.coords:
-        if metric == "crps":
-            ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'priogrid_gid'])
-        elif metric == "ign":
-            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'priogrid_gid'], **kwargs)
-        else: 
-            TypeError("metric must be 'crps' or 'ign'.")
 
-    elif "country_id" in predictions.coords:
-        if metric == "crps":
-            ensemble = xs.crps_ensemble(observed, predictions, dim=['month_id', 'country_id'])
-        elif metric == "ign":
-            ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=['month_id', 'country_id'], **kwargs)
-        else: 
-            TypeError("metric must be 'crps' or 'ign'.")
+    assert metric in ['crps', 'ign', "mis"], f'Metric: "{metric}" must be "crps", "ign", or "mis".'
+
+    ign_args = ['prob_type', 'ign_max', 'round_values', 'axis', 'bins', 'low_bin', 'high_bin']
+    ign_dict = {k: kwargs.pop(k) for k in dict(kwargs) if k in ign_args}
+
+    interval_args = ['prediction_interval_level']
+    interval_dict = {k: kwargs.pop(k) for k in dict(kwargs) if k in interval_args}
+
+    # Calculate average crps for each step (so across the other dimensions)
+    if metric == "crps":
+        ensemble = xs.crps_ensemble(observed, predictions, dim=list(observed.coords._names))
+    elif metric == "ign":
+        ensemble = ensemble_ignorance_score_xskillscore(observed, predictions, dim=list(observed.coords._names), **ign_dict)
+    elif metric == "mis":
+        ensemble = mean_interval_score_xskillscore(observed, predictions, dim=list(observed.coords._names), **interval_dict)
+    else:
+        TypeError(f'Metric: "{metric}" must be "crps", "ign", or "mis".')
+
     if not ensemble.dims: # dicts return False if empty, dims is empty if only one value.
         metrics = pd.DataFrame(ensemble.to_array().to_numpy(), columns = ["outcome"])
     else:
@@ -140,13 +144,14 @@ def main():
     parser.add_argument('-ib', metavar = 'ign-bins', nargs = "+", type = float, help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.', default = None)
     parser.add_argument('-ibl', metavar = 'max-ign', type = int, help='Set a min bin value when binning is an integer.', default = 0)
     parser.add_argument('-ibh', metavar = 'max-ign', type = int, help='Set a max bin value when binning is an integer.', default = 1000)
+    parser.add_argument('-pil', metavar = 'prediction-interval-level', type = float, help='Set prediction interval level for the interval score', default = 0.95)
     
 
     args = parser.parse_args()
 
     observed, predictions = load_data(args.o, args.p)
     observed, predictions = structure_data(observed, predictions, draw_column_name=args.sc, data_column_name = args.dc)
-    metrics = calculate_metrics(observed, predictions, metric = args.m, prob_type = args.ipt, ign_max = args.imx, bins = args.ib, low_bin = args.ibl, high_bin = args.ibh)
+    metrics = calculate_metrics(observed, predictions, metric = args.m, prob_type = args.ipt, ign_max = args.imx, bins = args.ib, low_bin = args.ibl, high_bin = args.ibh, prediction_interval_level = args.pil)
     if(args.f != None):
         write_metrics_to_file(metrics, args.f)
     else:
