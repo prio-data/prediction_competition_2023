@@ -71,20 +71,16 @@ def ensemble_ignorance_score(observations, forecasts, bins, low_bin = 0, high_bi
     observations = np.asarray(observations)
     forecasts = np.asarray(forecasts)
 
-    assert np.all(forecasts >= 0), f"Forecasts must be positive."
-    assert np.all(observations >= 0), f"Observations must be positive."
-
-    
+    assert np.all(forecasts >= 0), f"Forecasts must be non-negative."
+    assert np.all(observations >= 0), f"Observations must be non-negative."
 
     assert isinstance(bins, (int, list)), f"bins must be an integer or a list with floats"
     if isinstance(bins, int):
-        assert bins > 0, f"bins must be an integer above 0."
+        assert bins > 0, f"bins must be an integer above 0 or a list with floats."
 
     def digitize_minus_one(x, bins, right=False):
         return np.digitize(x, bins, right) - 1
 
-    
-    
     edges = np.histogram_bin_edges(forecasts[..., :], bins = bins, range = (low_bin, high_bin))
     binned_forecasts =  np.apply_along_axis(digitize_minus_one, axis = 1, arr = forecasts, bins = edges)
     binned_observations = digitize_minus_one(observations, edges)
