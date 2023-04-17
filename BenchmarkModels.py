@@ -40,6 +40,15 @@ def extract_sc_predictions(year,ss_predictions):
     return pd.DataFrame(df['prediction'])
 
 
+def extract_year(year, df):
+    """
+    Extract data from input dataframe in year-chunks
+    """
+    first_month = (year - 1980)*12 + 1
+    last_month = first_month + 11
+    return pd.DataFrame(df.loc[first_month:last_month])
+
+
 def describe_expanded(df, df_expanded, month, country):
     # Verify that the distribution is right
     this_month = 457
@@ -55,27 +64,50 @@ def describe_expanded(df, df_expanded, month, country):
     print("Variance:",df_expanded.loc[this_month,this_country].var())
 
 
-def sample_poisson_row(row: pd.DataFrame, ndraws:int = 100) -> pd.DataFrame:
+def sample_poisson_row(row: pd.DataFrame, ndraws:int = 100) -> np.ndarray:
     """Given a dataframe row, produce ndraws poisson draws from the prediction column in the row.
     Attention, this is a row vectorized approach, should be used with apply.
     :return an np array. Should be exploded for long df.
     """
-    row.prediction = 0 if row.prediction<=0 else row.prediction
+    row.prediction = 0 if row.prediction <= 0 else row.prediction
     return np.random.poisson(row.prediction, size=ndraws)
 
-def expanded_df(df, ndraws=1000,level='cm'):
+
+def sample_bootstrap_row(row: pd.DataFrame, draw_from: np.array, ndraws: int = 100) -> np.ndarray:
+    """Given a dataframe row, produce ndraws draws from the prediction column in the df.
+    Attention, this is a row vectorized approach, should be used with apply.
+    :return an np array. Should be exploded for long df.
+    """
+
+    return np.random.choice(draw_from, size=ndraws, replace=True)
+
+
+def expanded_df_poisson(df, ndraws=1000, level='cm'):
     function_with_draws = partial(sample_poisson_row, ndraws=ndraws)
     df['draws'] = df.apply(function_with_draws, axis=1)
     exploded_df = df.explode('draws')
-    if level=='cm':
-        exploded_df['draw'] = exploded_df.groupby(['month_id','country_id']).cumcount()
-    if level=='pgm':
-        exploded_df['draw'] = exploded_df.groupby(['month_id','priogrid_id']).cumcount()
-    exploded_df.drop(columns=['prediction'],inplace=True)
-    exploded_df.rename(columns={'draws':'outcome'},inplace=True)
-    exploded_df.set_index('draw', append=True,inplace=True)
-    return(exploded_df)
+    if level == 'cm':
+        exploded_df['draw'] = exploded_df.groupby(['month_id', 'country_id']).cumcount()
+    if level == 'pgm':
+        exploded_df['draw'] = exploded_df.groupby(['month_id', 'priogrid_id']).cumcount()
+    exploded_df.drop(columns=['prediction'], inplace=True)
+    exploded_df.rename(columns={'draws':'outcome'}, inplace=True)
+    exploded_df.set_index('draw', append=True, inplace=True)
+    return exploded_df
 
+
+def expanded_df_bootstrap(df, ndraws=1000, draw_from=None, level='cm'):
+    function_with_draws = partial(sample_bootstrap_row, draw_from=draw_from, ndraws=ndraws)
+    df['draws'] = df.apply(function_with_draws, axis=1)
+    exploded_df = df.explode('draws')
+    if level == 'cm':
+        exploded_df['draw'] = exploded_df.groupby(['month_id', 'country_id']).cumcount()
+    if level == 'pgm':
+        exploded_df['draw'] = exploded_df.groupby(['month_id', 'priogrid_id']).cumcount()
+    exploded_df.drop(columns=['ln_ged_sb_dep'], inplace=True)
+    exploded_df.rename(columns={'draws':'outcome'}, inplace=True)
+    exploded_df.set_index('draw', append=True, inplace=True)
+    return exploded_df
 
 # cm level
 ## Based on ensemble; expanded using a Poisson draw with mean=variance=\hat{y}_{it}
@@ -102,8 +134,33 @@ def poisson_expand_single_point_predictions(ensemble_df,level,year_list,draws=10
     for year_record in sc_predictions_ensemble:
         print(year_record['year'])
         df = year_record.get('prediction_df')
-        year_record['expanded_df'] = expanded_df(df,ndraws=draws,level=level)
-    return(sc_predictions_ensemble)
+        year_record['expanded_df'] = expanded_df_poisson(df,ndraws=draws,level=level)
+    return sc_predictions_ensemble
+
+
+def bootstrap_expand_single_point_predictions(ensemble_df, draw_from_column, level, year_list, draws=1000):
+    """
+    Expands an input prediction df with one prediction per unit to n draws from the 'draw_from' array,
+    bootstrap-fashion, and returns a list of dictionaries with prediction and metadata for all years in year_list
+    """
+
+    actuals = np.expm1(ensemble_df[draw_from_column].fillna(0))
+    actuals_by_year = []
+    for year in year_list:
+        actuals_dict = {
+            'year': year,
+            'actuals_df': extract_year(year=year, df=actuals)
+        }
+        actuals_by_year.append(actuals_dict)
+
+    # Expanding by drawing n draws from specified draw_from array
+
+    for year_record in actuals_by_year:
+        print(year_record['year'])
+        df = year_record.get('actuals_df')
+        year_record['expanded_df'] = expanded_df_bootstrap(df, ndraws=draws, draw_from=df[draw_from_column],
+                                                           level=level)
+    return actuals_by_year
 
   
 def poisson_expand_multiple_point_predictions(ModelList,level,year_list,draws=1000):
