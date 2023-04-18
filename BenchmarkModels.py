@@ -24,19 +24,23 @@ from viewser import Queryset, Column
 ## Extract sc predictions for a given calendar year
 
 def extract_sc_predictions(year,ss_predictions):
-    ''' Extract sc predictions'''
+    ''' Extract sc predictions if necessary, split into calendar years '''
     first_month = (year - 1980)*12 + 1
     months=list(range(first_month,first_month+12))
     df = ss_predictions.loc[months].copy()
-    df['prediction'] = 0
-    for month in range(1,12+1):
-        this_col = 'step_pred_' + str(month+2)
-        this_month = first_month + month - 1
-#        print(month, this_col, this_month)
-        df_temp = df.loc[this_month]
-#        print(df_temp[this_col].values)
-        df_temp['prediction'] = np.expm1(df_temp[this_col].values) 
-        df['prediction'].loc[this_month] = df_temp['prediction'].values
+    if 'prediction' in ss_predictions:
+        df = pd.DataFrame(df['prediction'])
+    else:
+        df['prediction'] = 0
+        for month in range(1,12+1):
+            this_month = first_month + month - 1
+            df_temp = df.loc[this_month]
+            this_col = 'step_pred_' + str(month+2)
+
+            df_temp['prediction'] = np.expm1(df_temp[this_col].values) 
+            df['prediction'].loc[this_month] = df_temp['prediction'].values
+    #        print(month, this_col, this_month)
+    #        print(df_temp[this_col].values)
     return pd.DataFrame(df['prediction'])
 
 
@@ -73,19 +77,29 @@ def sample_poisson_row(row: pd.DataFrame, ndraws:int = 100) -> np.ndarray:
     return np.random.poisson(row.prediction, size=ndraws)
 
 
+def sample_uniform_row(row: pd.DataFrame, ndraws:int = 100) -> np.ndarray:
+    """Given a dataframe row, produce ndraws poisson draws from the prediction column in the row.
+    Attention, this is a row vectorized approach, should be used with apply.
+    :return an np array. Should be exploded for long df.
+    """
+    row.prediction = 0 if row.prediction <= 0 else row.prediction
+    return np.random.uniform(low=row.prediction, high=row.prediction, size=ndraws)
+
 def sample_bootstrap_row(row: pd.DataFrame, draw_from: np.array, ndraws: int = 100) -> np.ndarray:
     """Given a dataframe row, produce ndraws draws from the prediction column in the df.
     Attention, this is a row vectorized approach, should be used with apply.
     :return an np array. Should be exploded for long df.
     """
-
     return np.random.choice(draw_from, size=ndraws, replace=True)
 
 
-def expanded_df_poisson(df, ndraws=1000, level='cm'):
-    function_with_draws = partial(sample_poisson_row, ndraws=ndraws)
+def expanded_df_distribution(df, ndraws=1000, level='cm', distribution = 'poisson'):
+    if distribution == 'poisson':
+        function_with_draws = partial(sample_poisson_row, ndraws=ndraws)
+    if distribution == 'uniform':
+        function_with_draws = partial(sample_uniform_row, ndraws=ndraws)
     df['draws'] = df.apply(function_with_draws, axis=1)
-    exploded_df = df.explode('draws')
+    exploded_df = df.explode('draws').astype('int32')
     if level == 'cm':
         exploded_df['draw'] = exploded_df.groupby(['month_id', 'country_id']).cumcount()
     if level == 'pgm':
@@ -99,7 +113,7 @@ def expanded_df_poisson(df, ndraws=1000, level='cm'):
 def expanded_df_bootstrap(df, ndraws=1000, draw_from=None, level='cm'):
     function_with_draws = partial(sample_bootstrap_row, draw_from=draw_from, ndraws=ndraws)
     df['draws'] = df.apply(function_with_draws, axis=1)
-    exploded_df = df.explode('draws')
+    exploded_df = df.explode('draws').astype('int32')
     if level == 'cm':
         exploded_df['draw'] = exploded_df.groupby(['month_id', 'country_id']).cumcount()
     if level == 'pgm':
@@ -115,7 +129,7 @@ def expanded_df_bootstrap(df, ndraws=1000, draw_from=None, level='cm'):
 
 # Assembling benchmark based on VIEWS ensemble predictions
 
-def poisson_expand_single_point_predictions(ensemble_df,level,year_list,draws=1000):
+def distribution_expand_single_point_predictions(predictions_df,level,year_list,draws=1000,distribution='poisson'):
     ''' Expands an input prediction df with one prediction per unit to n draws from the point predictions 
     assuming a poisson distribution with mean and variance equal to the point prediction, and returns a list of 
     dictionaries with prediction and metadata for all years in year_list '''
@@ -125,7 +139,7 @@ def poisson_expand_single_point_predictions(ensemble_df,level,year_list,draws=10
     for year in year_list:
         sc_dict = {
             'year': year,
-            'prediction_df': extract_sc_predictions(year=year,ss_predictions=ensemble_df)
+            'prediction_df': extract_sc_predictions(year=year,ss_predictions=predictions_df)
         }
         sc_predictions_ensemble.append(sc_dict)
 
@@ -134,7 +148,7 @@ def poisson_expand_single_point_predictions(ensemble_df,level,year_list,draws=10
     for year_record in sc_predictions_ensemble:
         print(year_record['year'])
         df = year_record.get('prediction_df')
-        year_record['expanded_df'] = expanded_df_poisson(df,ndraws=draws,level=level)
+        year_record['expanded_df'] = expanded_df_distribution(df,ndraws=draws,level=level,distribution=distribution)
     return sc_predictions_ensemble
 
 
@@ -163,7 +177,7 @@ def bootstrap_expand_single_point_predictions(ensemble_df, draw_from_column, lev
     return actuals_by_year
 
   
-def poisson_expand_multiple_point_predictions(ModelList,level,year_list,draws=1000):
+def distribution_expand_multiple_point_predictions(ModelList,level,year_list,draws=1000,distribution='poisson'):
     ''' Expands an input prediction df with multiple prediction per unit to n draws from the point predictions 
     assuming a poisson distribution with mean and variance equal to each point prediction. 
     The function then merges all these draws, and returns a list of 
@@ -171,12 +185,11 @@ def poisson_expand_multiple_point_predictions(ModelList,level,year_list,draws=10
 
     draws_per_model = np.floor_divide(draws,len(ModelList))
     
-    # Drawing from Poission distribution for each of the models in model list
+    # Drawing from the specified distribution for each of the models in model list
     for model in ModelList:
         print(model['modelname'])
 
         model['sc_predictions_constituent'] = []
-
         for year in year_list:
             sc_dict = {
                 'year': year,
@@ -184,11 +197,12 @@ def poisson_expand_multiple_point_predictions(ModelList,level,year_list,draws=10
             }
             model['sc_predictions_constituent'].append(sc_dict)
 
+            
         # Expanding by drawing n draws from Poisson distribution   
         for year_record in model['sc_predictions_constituent']:
             print(year_record['year'])
             df = year_record.get('prediction_df')
-            year_record['expanded_df'] = expanded_df(df,draws_per_model,level='cm')
+            year_record['expanded_df'] = expanded_df_distribution(df,draws_per_model,level='cm',distribution=distribution)
 
     # Assembling benchmark based on the list of expanded model predictions
 
@@ -228,7 +242,7 @@ def save_models(level,model_names,model_list, filepath):
             year_record['expanded_df'].to_parquet(filename)
         i = i + 1
 
-def save_actuals(level,df, filepath, year_list):
+def save_actuals(level, df, filepath, year_list):
     ''' Saves the actuals from the given prediction file '''
     # Dataframe with actuals
     df_actuals = pd.DataFrame(df['ln_ged_sb_dep'])
