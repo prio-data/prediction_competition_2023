@@ -80,10 +80,17 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_colum
     assert len(predictions.columns) == 4, f"Predictions data should only be four variables: 'month_id', 'country_id' (or 'priogrid_gid'), {draw_column_name}, and {data_column_name}. Columns in data: {predictions.columns}."
 
     onmonths = len(observed["month_id"].unique())
-    onunits =  len(observed["country_id"].unique())
-    
     pnmonths = len(observed["month_id"].unique())
-    pnunits =  len(observed["country_id"].unique())
+
+    if "priogrid_gid" in predictions.columns:
+        onunits = len(observed["priogrid_gid"].unique())
+        pnunits = len(observed["priogrid_gid"].unique())
+    elif "country_id" in predictions.columns:
+        onunits = len(observed["country_id"].unique())
+        pnunits = len(observed["country_id"].unique())
+    else:
+        TypeError("priogrid_gid or country_id must be an identifier")
+    
     pnmembers = len(predictions[draw_column_name].unique())
 
     assert len(predictions.index) == pnmonths*pnunits*pnmembers, f"Predictions data is not a balanced dataset with nobs: {len(predictions.index)} != months: {pnmonths} * units: {pnunits} * {draw_column_name}: {pnmembers}."
