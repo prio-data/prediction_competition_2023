@@ -17,19 +17,19 @@ $ mamba install --channel=conda-forge --name=base conda-lock
 4. Download our package from github:
 
 ```console
-$ git clone https://github.com/prio-data/<project_name>
-$ cd <project_name>
+$ git clone https://github.com/prio-data/prediction_competition_2023.git
+$ cd prediction_competition_2023
 ```
 5. Create the virtual environment based on lock-file created from environment.yml
 
 ``` console
-$ conda-lock install -n my_project_env  --mamba
-$ mamba activate my_project_env
+$ conda-lock install -n pred_eval_env  --mamba
+$ mamba activate pred_eval_env
 ```
 6. Run poetry to add additional python package requirements.
 
 ```console
-(my_project_env) $ poetry install
+(pred_eval_env) $ poetry install
 ```
 
 ## Useage
@@ -39,19 +39,19 @@ Assuming all submissions comply with the submission_template, the below function
 To estimate Poisson samples from point-predictions:
 
 ```console
-(my_project_env) $ python point-to-samples.py -s path/to/submission/template/folder/with/point/predictions
+(pred_eval_env) $ python point-to-samples.py -s path/to/submission/template/folder/with/point/predictions
 ```
 
 To estimate evaluation metrics:
 
 ```console
-(my_project_env) $ python evaluate_submissions -s path_to_submissions -a path_to_actuals 
+(pred_eval_env) $ python evaluate_submissions -s path_to_submissions -a path_to_actuals 
 ```
 
 To collate evaluation metrics:
 
 ```console
-(my_project_env) $ python collect_performance.py -s path_to_submissions
+(pred_eval_env) $ python collect_performance.py -s path_to_submissions
 ```
 
 This will result in four .parquet-files in the "path_to_submissions" folder with aggregated evaluation metrics per month and per unit at both the pgm and cm level. 
