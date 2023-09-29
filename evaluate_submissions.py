@@ -91,8 +91,8 @@ def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, a
         arr: npt.ArrayLike = resample(predictions.to_array(), expected_samples, axis = 3)
         arr = np.where(arr<0, 0, arr) # For the time when resampling happens to go below zero.
 
-        new_container = predictions.sel(member = 0)
-        new_container = new_container.expand_dims({"member": range(0,expected_samples)}).to_array().transpose("variable", "month_id", "country_id", "member")
+        new_container = predictions.sel(member = 1)
+        new_container = new_container.expand_dims({"member": range(0,expected_samples)}).to_array().transpose("variable", "month_id", target_column, "member")
         predictions: xarray.Dataset = xarray.DataArray(data = arr, coords = new_container.coords).to_dataset(dim="variable")
 
     ign_per_unit = calculate_metrics(observed, predictions, metric = "ign", bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5], aggregate_over="month_id")
