@@ -4,6 +4,8 @@
 */.DS_Store
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
+.vscode
+__pycache__
 
 # ignore ALL files in ANY directory named:
 memos/
