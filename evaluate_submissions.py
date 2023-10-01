@@ -160,7 +160,7 @@ def main():
                 logging.info(f'Evaluating {str(f)}')
                 evaluate_forecast(f, expected_samples, actuals_folder, submission_root)
             except Exception as e:
-                logging.error(f'In file {f}, got error:{str(e)}')
+                logging.error(f'{str(e)}')
 
 
 if __name__ == "__main__":
