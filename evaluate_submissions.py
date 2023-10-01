@@ -2,13 +2,16 @@ from pathlib import Path
 import yaml
 from CompetitionEvaluation import load_data, structure_data, calculate_metrics
 from dataclasses import dataclass
-import logging
 import os
 import xarray
 import numpy as np
 import numpy.typing as npt
 from scipy.signal import resample
 import argparse
+
+import logging
+logging.getLogger(__name__)
+logging.basicConfig(filename='evaluate_submission.log', encoding='utf-8', level=logging.INFO)
 
 def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, actuals_folder: str|os.PathLike, submission_root: str|os.PathLike) -> None:
 
