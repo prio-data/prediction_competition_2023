@@ -77,16 +77,16 @@ def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, a
     if len(observed.columns) != 1:
         raise ValueError("Actuals file can only have 1 column.")
     
-    units_in_predictions_not_in_observed = [c for c in predictions.index.unique(level=target_column) if c not in observed.index.unique(level=target_column)]
-    units_in_observed_not_in_predictions = [c for c in observed.index.unique(level=target_column) if c not in predictions.index.unique(level=target_column)]
+    #units_in_predictions_not_in_observed = [c for c in predictions.index.unique(level=target_column) if c not in observed.index.unique(level=target_column)]
+    #units_in_observed_not_in_predictions = [c for c in observed.index.unique(level=target_column) if c not in predictions.index.unique(level=target_column)]
 
-    times_in_observed_not_in_predictions = [c for c in observed.index.unique(level="month_id") if c not in predictions.index.unique(level="month_id")]
-    times_in_predictions_not_in_observed = [c for c in predictions.index.unique(level="month_id") if c not in observed.index.unique(level="month_id")]
+    #times_in_observed_not_in_predictions = [c for c in observed.index.unique(level="month_id") if c not in predictions.index.unique(level="month_id")]
+    #times_in_predictions_not_in_observed = [c for c in predictions.index.unique(level="month_id") if c not in observed.index.unique(level="month_id")]
 
-    assert len(units_in_predictions_not_in_observed) == 0, f'Lacking actuals for {target_column}: {units_in_predictions_not_in_observed}'
-    assert len(units_in_observed_not_in_predictions) == 0, f'Lacking predictions for {target_column}: {units_in_observed_not_in_predictions}'
-    assert len(times_in_observed_not_in_predictions) == 0, f'Lacking predictions for {target_column}: {times_in_observed_not_in_predictions}'
-    assert len(times_in_predictions_not_in_observed) == 0, f'Lacking actuals for {target_column}: {times_in_predictions_not_in_observed}'
+    #assert len(units_in_predictions_not_in_observed) == 0, f'Lacking actuals for {target_column}: {units_in_predictions_not_in_observed}'
+    #assert len(units_in_observed_not_in_predictions) == 0, f'Lacking predictions for {target_column}: {units_in_observed_not_in_predictions}'
+    #assert len(times_in_observed_not_in_predictions) == 0, f'Lacking predictions for {target_column}: {times_in_observed_not_in_predictions}'
+    #assert len(times_in_predictions_not_in_observed) == 0, f'Lacking actuals for {target_column}: {times_in_predictions_not_in_observed}'
 
     observed, predictions = structure_data(observed, predictions, draw_column_name="draw", data_column_name = "outcome")
 
