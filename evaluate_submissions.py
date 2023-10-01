@@ -111,8 +111,10 @@ def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, a
         new_container = new_container.expand_dims({"member": range(0,expected_samples)}).to_array().transpose("variable", "month_id", target_column, "member")
         predictions: xarray.Dataset = xarray.DataArray(data = arr, coords = new_container.coords).to_dataset(dim="variable")
 
-    predictions["outcome"] = xarray.where(predictions["outcome"]<0, 0, predictions["outcome"])
-    logging.warning(f'Found negative predictions. These are censored at 0 before calculating Ignorance Score.')
+    if bool((predictions["outcome"] < 0).any()):
+        logging.warning(f'Found negative predictions. These are censored at 0 before calculating Ignorance Score.')
+        predictions["outcome"] = xarray.where(predictions["outcome"]<0, 0, predictions["outcome"])
+        
     ign_per_unit = calculate_metrics(observed, predictions, metric = "ign", bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5], aggregate_over="month_id")
     ign_per_month = calculate_metrics(observed, predictions, metric = "ign", bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5], aggregate_over=target_column)
     
