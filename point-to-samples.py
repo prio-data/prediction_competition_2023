@@ -46,7 +46,8 @@ def samples_from_point_predictions(parquet_file: str | os.PathLike, type: str, t
 
     df = df.explode("outcome")
     df["draw"] = df.groupby(["month_id", unit]).cumcount()
-    df.reset_index(inplace = True)
+    df = df.reset_index()
+    df = df[["month_id", unit, "draw", "outcome"]]
     df.set_index(['month_id', unit, "draw"], inplace = True)
     
 
