@@ -18,7 +18,7 @@ def setup_eval_df(eval_file: str|os.PathLike, team: str, identifier: str, target
 
 def concat_eval(submission: str|os.PathLike, target: str, aggregation: str, metric: str) -> pd.DataFrame:
     eval_data: list[str|os.PathLike] = list(submission.glob(f'**/{metric}_{aggregation}.parquet'))
-    eval_data: list[str|os.PathLike] = [f for f in eval_data if f.parts[2] == target]
+    eval_data: list[str|os.PathLike] = [f for f in eval_data if f.parts[-4] == target]
 
     with open(submission/"submission_details.yml") as f:
         submission_details = yaml.safe_load(f)
@@ -30,7 +30,8 @@ def concat_eval(submission: str|os.PathLike, target: str, aggregation: str, metr
     
     dfs: list = []
     for f in eval_data:
-        _, _, target2, window, _, _ = f.parts
+        window = f.parts[-3]
+        target2 = f.parts[-4]
         assert target == target2
 
         sdf: pd.DataFrame = setup_eval_df(f, team, identifier, target, window)
