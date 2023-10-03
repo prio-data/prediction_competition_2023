@@ -102,11 +102,14 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_colum
     predictions = predictions.rename(columns = {draw_column_name: "member", data_column_name: "outcome"})
     observed = observed.rename(columns = {data_column_name: "outcome"})
 
+    predictions["month_id"] = predictions["month_id"].astype(int)
     # Set up multi-index to easily convert to xarray
     if "priogrid_gid" in predictions.columns:
+        predictions["priogrid_gid"] = predictions["priogrid_gid"].astype(int)
         predictions = predictions.set_index(['month_id', 'priogrid_gid', 'member'])
         observed = observed.set_index(['month_id', 'priogrid_gid'])
     elif "country_id" in predictions.columns:
+        predictions["country_id"] = predictions["country_id"].astype(int)
         predictions = predictions.set_index(['month_id', 'country_id', 'member'])
         observed = observed.set_index(['month_id', 'country_id'])
     else:
