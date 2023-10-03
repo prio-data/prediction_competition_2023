@@ -33,17 +33,17 @@ def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, a
     _, name, target, window = forecast_file.relative_to(submission_root).parent.parts
     actual = [actual for actual in actuals if actual.target == target and actual.test_window == window]
 
+    if len(actual) != 1:
+        raise ValueError("Only one hit allowed.")
+    actual = actual[0]
+    actual_file = actuals_folder/actual.target/actual.test_window/actual.parquet_file
+
     if target == "pgm":
         target_column = "priogrid_gid"
     elif target == "cm":
         target_column = "country_id"
     else:
         raise ValueError(f'Target {target} must be either "pgm" or "cm".')
-
-    if len(actual) != 1:
-        raise ValueError("Only one hit allowed.")
-    actual = actual[0]
-    actual_file = actuals_folder/actual.target/actual.test_window/actual.parquet_file
 
     observed, predictions = load_data(observed_path = actual_file, forecasts_path=forecast_file)
 
