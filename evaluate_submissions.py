@@ -93,8 +93,10 @@ def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, a
     predictions[target_column] in observed[target_column]
     predictions["month_id"] in observed["month_id"]
 
+    if bool((predictions["outcome"] > 10e9).any()):
+        logging.warning(f'Found predictions larger than earth population. These are censored at 10 billion.')
+        predictions["outcome"] = xarray.where(predictions["outcome"]>10e9, 10e9, predictions["outcome"])
         
-
     crps_per_unit = calculate_metrics(observed, predictions, metric = "crps", aggregate_over="month_id")
     mis_per_unit = calculate_metrics(observed, predictions, metric = "mis", prediction_interval_level = 0.9, aggregate_over="month_id")
 
@@ -114,7 +116,8 @@ def evaluate_forecast(forecast_file: str | os.PathLike, expected_samples: int, a
     if bool((predictions["outcome"] < 0).any()):
         logging.warning(f'Found negative predictions. These are censored at 0 before calculating Ignorance Score.')
         predictions["outcome"] = xarray.where(predictions["outcome"]<0, 0, predictions["outcome"])
-        
+
+
     ign_per_unit = calculate_metrics(observed, predictions, metric = "ign", bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5], aggregate_over="month_id")
     ign_per_month = calculate_metrics(observed, predictions, metric = "ign", bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5], aggregate_over=target_column)
     
