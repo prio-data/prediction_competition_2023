@@ -127,5 +127,5 @@ if __name__ == "__main__":
 
     if args.t is not None and Path(args.t).exists():
         eval_files = list(Path(args.s).glob("eval*.parquet"))
-        [get_global_performance(f, to_latex = True, save_to = Path(args.t)) for f in eval_files]
-        [get_global_performance(f, to_latex = True, save_to = Path(args.t), by_window=True) for f in eval_files]
+        [get_global_performance(f, save_to = Path(args.t)) for f in eval_files]
+        [get_global_performance(f, save_to = Path(args.t), by_window=True) for f in eval_files]
