@@ -86,10 +86,11 @@ def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike 
     df = df.drop(columns = ["target", agg_level])
 
     if by_window:
-        df = df.set_index(["team", "identifier", "window"])
-        df = df.groupby(level=[0,1,2]).mean()
-        df = df.sort_values("crps")
-        df.index = df.index.rename(["Team", "Model", "Window"])
+        df["window"] = df["window"].apply(lambda x: x.split("_")[-1]).astype(int)
+        df = df.groupby(["window", "team", "identifier"]).mean().reset_index()
+        df = df.groupby("window").apply(pd.DataFrame.sort_values, 'crps').reset_index(drop=True)
+        df = df.set_index(["window", "team", "identifier"])
+        df.index = df.index.rename(["Window", "Team", "Model"])
     else:
         df = df.set_index(["team", "identifier"])
         test_windows = df["window"].groupby(level=[0,1]).nunique()
@@ -111,7 +112,8 @@ def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike 
 
         df = df.style.format(decimal=',', thousands='.', precision=3)
         df.to_latex(save_to / f'{file_stem}.tex')
-        df.to_markdown(save_to / f'{file_stem}.md')
+        df.to_html(save_to / f'{file_stem}.html')
+        df.to_excel(save_to / f'{file_stem}.xlsx')
 
         
 
