@@ -76,11 +76,45 @@ def collect_evaluations(submissions_path: str|os.PathLike) -> None:
             fpath = submission_path / f'eval_{target}_{aggregation}.parquet'
             df.to_parquet(fpath)
 
+def get_global_performance(eval_file: str|os.PathLike, to_latex: bool = False, save_to: str|os.PathLike = ""):
+
+    target = eval_file.stem.split("_")[1]
+
+    df: pd.DataFrame = pq.read_table(eval_file).to_pandas()
+    df = df.reset_index()
+    agg_level = df.columns[3]
+    df = df.drop(columns = ["target", agg_level])
+
+    df = df.set_index(["team", "identifier"])
+    test_windows = df["window"].groupby(level=[0,1]).nunique()
+    df = df.drop(index=test_windows[test_windows !=max(test_windows)].index, 
+            columns = "window")
+
+    df = df.groupby(level=[0,1]).mean()
+    df = df.sort_values("crps")
+
+    df.index = df.index.rename(["Team", "Model"])
+    df.columns = df.columns.str.upper()
+
+    if to_latex:
+        if save_to == "":
+                raise ValueError('Please provide a folder "save_to" to save results in.')
+        fname = save_to / f"global_results_{target}_{agg_level}.tex"
+        df = df.style.format(decimal=',', thousands='.', precision=3)
+        df.to_latex(fname)
+    else:
+        return df
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Method for collating evaluations from all submissions in the ViEWS Prediction Challenge",
                                      epilog = "Example usage: python collect_performance.py -s ./submissions")
     parser.add_argument('-s', metavar='submissions', type=str, help='path to folder with submissions complying with submission_template')
+    parser.add_argument('-t', metavar='tables_folder', type=str, help='path to folder to save result tables in latex', default=None)
     args = parser.parse_args()
 
     collect_evaluations(args.s)
+
+    if args.t is not None and Path(args.t).exists():
+        eval_files = list(Path(args.s).glob("eval*.parquet"))
+        [get_global_performance(f, to_latex = True, save_to = Path(args.t)) for f in eval_files]
