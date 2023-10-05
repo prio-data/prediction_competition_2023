@@ -7,6 +7,8 @@ import argparse
 
 def calc_poisson(df: pd.DataFrame, test: bool) -> pd.DataFrame:
     np.random.seed(574309)
+    df["outcome"] = np.where(df["outcome"] > 10e9, 10e9, df["outcome"]) # we set upper limit on predictions is 10e9 due to overflow constraints
+
     df["outcome"] = df["outcome"].apply(np.random.poisson, size = 1000)
 
     if test:
