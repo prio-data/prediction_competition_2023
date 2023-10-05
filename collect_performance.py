@@ -76,7 +76,7 @@ def collect_evaluations(submissions_path: str|os.PathLike) -> None:
             fpath = submission_path / f'eval_{target}_{aggregation}.parquet'
             df.to_parquet(fpath)
 
-def get_global_performance(eval_file: str|os.PathLike, to_latex: bool = False, save_to: str|os.PathLike = ""):
+def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike = "", by_window: bool = False):
 
     target = eval_file.stem.split("_")[1]
 
@@ -85,25 +85,35 @@ def get_global_performance(eval_file: str|os.PathLike, to_latex: bool = False, s
     agg_level = df.columns[3]
     df = df.drop(columns = ["target", agg_level])
 
-    df = df.set_index(["team", "identifier"])
-    test_windows = df["window"].groupby(level=[0,1]).nunique()
-    df = df.drop(index=test_windows[test_windows !=max(test_windows)].index, 
-            columns = "window")
+    if by_window:
+        df = df.set_index(["team", "identifier", "window"])
+        df = df.groupby(level=[0,1,2]).mean()
+        df = df.sort_values("crps")
+        df.index = df.index.rename(["Team", "Model", "Window"])
+    else:
+        df = df.set_index(["team", "identifier"])
+        test_windows = df["window"].groupby(level=[0,1]).nunique()
+        df = df.drop(index=test_windows[test_windows !=max(test_windows)].index, 
+                columns = "window")
+        df = df.groupby(level=[0,1]).mean()
+        df = df.sort_values("crps")
+        df.index = df.index.rename(["Team", "Model"])
 
-    df = df.groupby(level=[0,1]).mean()
-    df = df.sort_values("crps")
-
-    df.index = df.index.rename(["Team", "Model"])
     df.columns = df.columns.str.upper()
 
-    if to_latex:
-        if save_to == "":
-                raise ValueError('Please provide a folder "save_to" to save results in.')
-        fname = save_to / f"global_results_{target}_{agg_level}.tex"
-        df = df.style.format(decimal=',', thousands='.', precision=3)
-        df.to_latex(fname)
-    else:
+    if save_to == "":
         return df
+    else:
+        if by_window:
+            file_stem = f"results_by_window_{target}_{agg_level}"
+        else:
+            file_stem = f"global_results_{target}_{agg_level}"
+
+        df = df.style.format(decimal=',', thousands='.', precision=3)
+        df.to_latex(save_to / f'{file_stem}.tex')
+        df.to_markdown(save_to / f'{file_stem}.md')
+
+        
 
 if __name__ == "__main__":
 
@@ -118,3 +128,4 @@ if __name__ == "__main__":
     if args.t is not None and Path(args.t).exists():
         eval_files = list(Path(args.s).glob("eval*.parquet"))
         [get_global_performance(f, to_latex = True, save_to = Path(args.t)) for f in eval_files]
+        [get_global_performance(f, to_latex = True, save_to = Path(args.t), by_window=True) for f in eval_files]
