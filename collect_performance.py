@@ -88,9 +88,9 @@ def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike 
     if by_window:
         df["window"] = df["window"].apply(lambda x: x.split("_")[-1]).astype(int)
         df = df.groupby(["window", "team", "identifier"]).mean().reset_index()
-        df = df.groupby("window").apply(pd.DataFrame.sort_values, 'crps').reset_index(drop=True)
-        df = df.set_index(["window", "team", "identifier"])
-        df.index = df.index.rename(["Window", "Team", "Model"])
+        df = df.rename(columns = {"window": "Window", "team": "Team", "identifier": "Model", "crps": "CRPS", "ign": "IGN", "mis": "MIS"})
+        df = df.pivot_table(values=["CRPS", "IGN", "MIS"], index = ["Team", "Model"], aggfunc = {"CRPS": "mean", "IGN": "mean", "MIS": "mean"}, columns = "Window")
+        df  = df.sort_values(("CRPS", 2018))
     else:
         df = df.set_index(["team", "identifier"])
         test_windows = df["window"].groupby(level=[0,1]).nunique()
@@ -99,18 +99,24 @@ def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike 
         df = df.groupby(level=[0,1]).mean()
         df = df.sort_values("crps")
         df.index = df.index.rename(["Team", "Model"])
-
-    df.columns = df.columns.str.upper()
+        df.columns = df.columns.str.upper()
 
     if save_to == "":
         return df
     else:
         if by_window:
-            file_stem = f"results_by_window_{target}_{agg_level}"
+            file_stem = f"results_by_window_{target}"
         else:
-            file_stem = f"global_results_{target}_{agg_level}"
+            file_stem = f"global_results_{target}"
 
-        df = df.style.format(decimal=',', thousands='.', precision=3)
+        css_alt_rows = 'background-color: #e6e6e6; color: black;'
+        highlight_props = "background-color: #00718f; color: #fafafa;"
+        df = df.style \
+                .format(decimal=',', thousands='.', precision=3) \
+                .highlight_min(axis=0, props=highlight_props) \
+                .set_table_styles([
+                    {'selector': 'tr:nth-child(even)', 'props': css_alt_rows}
+                ])
         df.to_latex(save_to / f'{file_stem}.tex')
         df.to_html(save_to / f'{file_stem}.html')
         df.to_excel(save_to / f'{file_stem}.xlsx')
@@ -128,6 +134,6 @@ if __name__ == "__main__":
     collect_evaluations(args.s)
 
     if args.t is not None and Path(args.t).exists():
-        eval_files = list(Path(args.s).glob("eval*.parquet"))
+        eval_files = list(Path(args.s).glob("eval*per_month.parquet"))
         [get_global_performance(f, save_to = Path(args.t)) for f in eval_files]
         [get_global_performance(f, save_to = Path(args.t), by_window=True) for f in eval_files]
