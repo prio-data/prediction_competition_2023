@@ -40,19 +40,25 @@ Assuming all submissions comply with the submission_template, the below function
 To estimate Poisson samples from point-predictions:
 
 ```console
-python point-to-samples.py -s path/to/submission/template/folder/with/point/predictions
+python point-to-samples.py -s /path/to/submission/template/folder/with/point/predictions
 ```
 
-To estimate evaluation metrics:
+To test compliance of submission with submission standards (will write to a test_compliance.log file in current working folder):
 
 ```console
-python evaluate_submissions -s path_to_submissions -a path_to_actuals 
+python test_compliance.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
+```
+
+To estimate evaluation metrics (will also write a evaluate_submission.log in current working folder):
+
+```console
+python evaluate_submissions -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
 ```
 
 To collate evaluation metrics:
 
 ```console
-python collect_performance.py -s path_to_submissions
+python collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template
 ```
 
 This will result in four .parquet-files in the "path_to_submissions" folder with aggregated evaluation metrics per month and per unit at both the pgm and cm level. 
