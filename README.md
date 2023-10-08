@@ -52,7 +52,7 @@ python test_compliance.py -s /path/to/folder/containing/only/folders/like/submis
 To estimate evaluation metrics (will also write a evaluate_submission.log in current working folder):
 
 ```console
-python evaluate_submissions -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
+python evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
 ```
 
 To collate evaluation metrics:
