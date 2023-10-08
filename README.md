@@ -60,6 +60,7 @@ To collate evaluation metrics:
 ```console
 python collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template
 ```
+This will result in four .parquet-files in the "path_to_submissions" folder with aggregated evaluation metrics per month and per unit at both the pgm and cm level. 
 
 You can also get tables of global metrics in LaTeX, HTML, and Excel (this will also do the above step first):
 
@@ -67,5 +68,3 @@ You can also get tables of global metrics in LaTeX, HTML, and Excel (this will a
 python collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template -t /path/to/folder/you/want/tables/in
 ```
 
-
-This will result in four .parquet-files in the "path_to_submissions" folder with aggregated evaluation metrics per month and per unit at both the pgm and cm level. 
