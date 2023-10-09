@@ -1,6 +1,6 @@
 # Instructions
 
-Here, you'll find a small collection of functions that work with prediction-data in the format specified by the ViEWS Prediction Challenge.
+Here, you'll find a small collection of functions that work with prediction-data in the format specified by the [ViEWS Prediction Challenge](https://viewsforecasting.org/prediction-competition-2/).
 
 ## Installation
 
