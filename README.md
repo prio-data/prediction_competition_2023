@@ -37,6 +37,39 @@ poetry install
 
 Assuming all submissions comply with the submission_template, the below functions should work. Note that these functions do take some time to finish if you are working on the PRIO-GRID level. A 64Gb RAM workstation with fast hard-drive is recommended, but they finish in reasonable time (10-20 minutes) on a laptop with 32Gb RAM.
 
+### The submission_template
+Create one submission_template-folder for each unique model-description, possibly having predictions at both cm and pgm level. There should only be one .parquet-file in each "{target}/{window}" subfolder. If you have more than one model, you will need several submission-folders with unique submission_details.yml. Please to not rename "submission_details.yml".
+
+```bash submission_template folder structure
+.
+├── cm
+│   ├── test_window_2018
+│   ├── test_window_2019
+│   ├── test_window_2020
+│   └── test_window_2021
+├── pgm
+│   ├── test_window_2018
+│   ├── test_window_2019
+│   ├── test_window_2020
+│   └── test_window_2021
+├── readme.txt
+└── submission_details.yml
+```
+
+```yaml submission_details.yml
+team: # Ideally 3-8 characters, to be used in plots and tables
+short_title: "My title here" # Wrap this in "" if you are using special characters like ":" or "-".
+even_shorter_identifier: # 1-2 words long, to be used in plots and tables. Do not need the team name.
+authors: # Include all authors with one name+affil entry for each. Note the "-" for each entry.
+  - name:
+    affil:
+  - name:
+    affil:
+contact:
+```
+
+### Command-line tools
+
 To estimate Poisson samples from point-predictions:
 
 ```console
