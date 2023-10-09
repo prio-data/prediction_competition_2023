@@ -27,6 +27,7 @@ def resample_predictions(parquet_file: str|os.PathLike, num_samples: int) -> pd.
     df = df.explode("outcome")
     df["draw"] = df.groupby(["month_id", unit]).cumcount()
     df = df.reset_index()
+    df["outcome"] = np.where(df["outcome"]<0, 0, df["outcome"])
     return df[["month_id", unit, "draw", "outcome"]]
 
 def get_prediction_files(submission: str|os.PathLike) -> list[str]:
