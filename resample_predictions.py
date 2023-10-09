@@ -6,6 +6,7 @@ import pyarrow.parquet as pq
 import pandas as pd
 import os
 import argparse
+import numpy as np
 
 def resample_predictions(parquet_file: str|os.PathLike, num_samples: int) -> pd.DataFrame:
     parquet_file = Path(parquet_file)
