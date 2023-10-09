@@ -25,6 +25,7 @@ pathlib = "^1.0.1"
 pyyaml = "^6.0.1"
 pyarrow = "^13.0.0"
 openpyxl = "^3.1.2"
+seaborn = {extras = ["stats"], version = "^0.13.0"}
 
 [build-system]
 requires = ["poetry-core"]
