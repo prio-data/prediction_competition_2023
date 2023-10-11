@@ -26,6 +26,8 @@ pyyaml = "^6.0.1"
 pyarrow = "^13.0.0"
 openpyxl = "^3.1.2"
 seaborn = {extras = ["stats"], version = "^0.13.0"}
+cartopy = "^0.22.0"
+mapclassify = "^2.6.1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -12,6 +12,7 @@ dependencies:
   - conda-lock>=2.1
   - pip
   - poetry>=1.5.*
+  - geopandas>=0.14.*
 
 # Non-standard section listing target platforms for conda-lock:
 platforms:
