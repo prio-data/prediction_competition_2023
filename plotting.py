@@ -33,9 +33,7 @@ def subset_predictions(pred_file, id, model):
     df["model"] = model
     return df
 
-def collect_plotting_data(model_a: str|os.PathLike, model_b: str|os.PathLike, actual_folder: str|os.PathLike, target: str, unit_id: int) -> pd.DataFrame:
-    
-    def get_info(model: str|os.PathLike, target = str) -> tuple[list[pd.DataFrame], list[os.PathLike], str, str]:
+def get_model_info(model: str|os.PathLike, target = str) -> tuple[list[pd.DataFrame], list[os.PathLike], str, str]:
         preds = get_prediction_files(model)
         preds = [f for f in preds if f.parent.parts[-2] == target]
         eval = list(model.glob(f"eval_{target}_per_month.parquet"))
@@ -43,16 +41,21 @@ def collect_plotting_data(model_a: str|os.PathLike, model_b: str|os.PathLike, ac
         
         return preds, eval, team, model
 
+def collect_plotting_data(models: list[str], actual_folder: str|os.PathLike, target: str, unit_id: int, max_fatalities:int = None) -> pd.DataFrame:
+    
     actuals = list((actual_folder / f"{target}").glob("**/*.parquet"))
     actuals_df = pd.concat([subset_predictions(f, unit_id, "actuals") for f in actuals])
 
-    a_preds, a_eval, a_team, a_model = get_info(model_a, target)
-    b_preds, b_eval, b_team, b_model = get_info(model_b, target)
+    data_list = [actuals_df]
+    for model in models:
+        preds, eval, team, model_name = get_model_info(model, target)
+        sdf = pd.concat([subset_predictions(f, id = unit_id, model = f'{team}: {model_name}') for f in preds])
+        data_list.append(sdf)
 
-    a_df = pd.concat([subset_predictions(f, id = unit_id, model = a_model) for f in a_preds])
-    b_df = pd.concat([subset_predictions(f, id = unit_id, model = b_model) for f in b_preds])
-    
-    df = pd.concat([comparison_df, baseline_df, actuals_df])
+    df = pd.concat(data_list)
+
+    if max_fatalities != None:
+        df["outcome"] = df["outcome"].apply(lambda x: np.where(np.array(x) > max_fatalities, max_fatalities, np.array(x)))
 
     df["p50"] = df["outcome"].apply(np.quantile, q = 0.5)
     df["p95"] = df["outcome"].apply(np.quantile, q = 0.95)
@@ -72,5 +75,5 @@ def ribbon_plot(df: pd.DataFrame, title: str):
     df = df.sort_values("month_id")
     for l, dat in df.groupby("model"):
         dat.plot(x = "month_id", y = "p50", label = l, ax = ax)
-        ax.fill_between(dat.month_id, dat.p05, dat.p95, alpha = 0.2)
-    ax.set_title("Case comparison: Mali 2018-2021, cm-models")
+        ax.fill_between(dat.month_id, dat.p25, dat.p75, alpha = 0.2)
+    ax.set_title(title)
