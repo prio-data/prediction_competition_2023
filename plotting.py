@@ -24,7 +24,7 @@ def team_and_model(submission: str|os.PathLike) -> tuple[str, str]:
         team = submission_details["team"]
     return (team, identifier)
 
-def subset_predictions(pred_file, id, model):
+def get_predictions(pred_file, model):
     window = pred_file.parent.parts[-1]
     window = int(window.split("_")[-1])
     unit = get_unit(pred_file)
@@ -32,57 +32,80 @@ def subset_predictions(pred_file, id, model):
     df = pq.read_table(pred_file).to_pandas()
     if df.index.names != [None]:
         df = df.reset_index()
-    df = df[df[unit] == id]
-    if "draw" in df.columns:
-        df = df.groupby(["month_id", unit]).agg({"outcome": lambda x: x.tolist()}).reset_index()
     
     df["window"] = window
     df["model"] = model
+    df["unit"] = unit
     return df
 
 def get_model_info(model: str|os.PathLike, target = str) -> tuple[list[pd.DataFrame], list[os.PathLike], str, str]:
-        preds = get_prediction_files(model)
-        preds = [f for f in preds if f.parent.parts[-2] == target]
-        eval = list(model.glob(f"eval_{target}_per_month.parquet"))
-        team, model = team_and_model(model)
-        
-        return preds, eval, team, model
+    preds = get_prediction_files(model)
+    preds = [f for f in preds if f.parent.parts[-2] == target]
+    eval = list(model.glob(f"eval_{target}_per_month.parquet"))
+    team, model = team_and_model(model)
+    
+    return preds, eval, team, model
 
-def collect_plotting_data(models: list[str], actual_folder: str|os.PathLike, target: str, unit_id: int, max_fatalities:int = None) -> pd.DataFrame:
+def get_quantiles(df: pd.DataFrame, quantiles: list[float]) -> pd.DataFrame:
+    if df.index.names != [None]:
+        df = df.reset_index()
+
+    if "priogrid_gid" in df.columns:
+        unit = "priogrid_gid"
+    elif "country_id" in df.columns:
+        unit = "country_id"
+    else:
+        raise ValueError(f'Unable to find column name for units.')
+
+    if "draw" in df.columns:
+        group_columns = [c for c in df.columns if c not in ["draw", "outcome"]]
+        df = df.groupby(group_columns).agg({"outcome": lambda x: x.tolist()}).reset_index()
+
+    for q in quantiles:
+        df[f'p{q*100:.0f}'] = df["outcome"].apply(np.quantile, q = q)
+    
+    var_names = [f'p{q*100:.0f}' for q in quantiles]
+    mask = df["model"] == "actuals"
+    df.loc[mask, var_names] = np.nan
+    df = df.drop(columns="outcome")
+    return df
+
+def collect_plotting_data(models: list[str], actual_folder: str|os.PathLike, target: str, unit_ids: list[int] = None, quantiles: list[float] = None) -> pd.DataFrame:
     
     actuals = list((actual_folder / f"{target}").glob("**/*.parquet"))
-    actuals_df = pd.concat([subset_predictions(f, unit_id, "actuals") for f in actuals])
+    actuals_df = pd.concat([get_predictions(f, "actuals") for f in actuals])
+
+    if target == "pgm":
+        unit = "priogrid_gid"
+    elif target == "cm":
+        unit = "country_id"
+    else:
+        raise ValueError('Target must be "pgm" or "cm".')
 
     data_list = [actuals_df]
     for model in models:
         preds, eval, team, model_name = get_model_info(model, target)
-        sdf = pd.concat([subset_predictions(f, id = unit_id, model = f'{team}: {model_name}') for f in preds])
+        sdf = pd.concat([get_predictions(f, model = f'{team}-{model_name}') for f in preds])
         data_list.append(sdf)
 
     df = pd.concat(data_list)
 
+    if unit_ids != None:
+        df = df.query(f'{unit} in @unit_ids')
+    
+    return df
+
+def ribbon_plot(df: pd.DataFrame, title: str, low: float, mid: float, high: float, max_fatalities:int = None):
     if max_fatalities != None:
         df["outcome"] = df["outcome"].apply(lambda x: np.where(np.array(x) > max_fatalities, max_fatalities, np.array(x)))
 
-    df["p50"] = df["outcome"].apply(np.quantile, q = 0.5)
-    df["p95"] = df["outcome"].apply(np.quantile, q = 0.95)
-    df["p05"] = df["outcome"].apply(np.quantile, q = 0.05)
-    df["p75"] = df["outcome"].apply(np.quantile, q = 0.75)
-    df["p25"] = df["outcome"].apply(np.quantile, q = 0.25)
+    df = get_quantiles(df, [low, mid, high])
 
-    mask = df["model"] == "actuals"
-    df.loc[mask, ["p05", "p25", "p75", "p95"]] = np.nan
-
-    df = df.drop(columns="outcome")
-    return df
-
-def ribbon_plot(df: pd.DataFrame, title: str):
     fig, ax = plt.subplots(1)
-
     df = df.sort_values("month_id")
     for l, dat in df.groupby("model"):
-        dat.plot(x = "month_id", y = "p50", label = l, ax = ax)
-        ax.fill_between(dat.month_id, dat.p25, dat.p75, alpha = 0.2)
+        dat.plot(x = "month_id", y = f'p{mid*100:.0f}', label = l, ax = ax)
+        ax.fill_between(dat.month_id, dat[f'p{low*100:.0f}'], dat[f'p{high*100:.0f}'], alpha = 0.2)
     ax.set_title(title)
 
 def prepare_geo_data(submission, target, shapefile, window = None):
