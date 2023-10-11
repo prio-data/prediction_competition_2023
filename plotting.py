@@ -116,7 +116,7 @@ def prepare_geo_data(submission, target, shapefile, window = None):
     df = gpd.GeoDataFrame(df)
     return df, eval_df, team, model
 
-def choropleth_map(submission, metric, target, shapefile, window = None, cmap = "viridis", metric_ticks = None, crs = ccrs.EqualEarth(), views_logo = True, info_box_placement = [0.65, 0.05, 0.1, 0.1]) -> None:
+def choropleth_map(submission, metric, target, shapefile, window = None, cmap = "viridis", metric_ticks = None, crs = ccrs.EqualEarth(), views_logo = True, info_box_placement = [0.66, 0.08, 0.1, 0.1]) -> None:
     df, eval_df, team, model = prepare_geo_data(submission, target = target, shapefile = shapefile, window = window)
 
     if metric == "crps" and target == "cm" and metric_ticks == None:
