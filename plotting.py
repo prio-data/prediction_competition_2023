@@ -116,39 +116,39 @@ def prepare_geo_data(submission, target, shapefile, window = None):
     df = gpd.GeoDataFrame(df)
     return df, eval_df, team, model
 
-def choropleth_map(submission, metric, target, shapefile, window = None, cmap = "viridis", metric_ticks = None, crs = ccrs.EqualEarth(), views_logo = True) -> None:
+def choropleth_map(submission, metric, target, shapefile, window = None, cmap = "viridis", metric_ticks = None, crs = ccrs.EqualEarth(), views_logo = True, info_box_placement = [0.65, 0.05, 0.1, 0.1]) -> None:
     df, eval_df, team, model = prepare_geo_data(submission, target = target, shapefile = shapefile, window = window)
 
     if metric == "crps" and target == "cm" and metric_ticks == None:
         drop_value = 1000
         metric_ticks = [0, 1, 10, 100, 500, 1000]
         
-        vmin, vmax = df[metric].min(), df[metric].max()
+        vmin, vmax = df[metric].min(), drop_value
         cbar = plt.cm.ScalarMappable(norm = matplotlib.colors.SymLogNorm(linthresh = 10, vmin=vmin, vmax=vmax, base = 10), cmap = cmap)
 
     if metric == "ign" and target == "cm" and metric_ticks == None:
         drop_value = 4
         metric_ticks = [0, 1, 2, 3, 4]
         
-        vmin, vmax = df[metric].min(), df[metric].max()
+        vmin, vmax = df[metric].min(), drop_value
         cbar = plt.cm.ScalarMappable(norm = matplotlib.colors.Normalize(vmin=0, vmax=4, clip = True), cmap = cmap)
 
     if metric == "crps" and target == "pgm" and metric_ticks == None:
         drop_value = 1000
         metric_ticks = [0, 1, 10, 100, 500, 1000]
         
-        vmin, vmax = df[metric].min(), df[metric].max()
+        vmin, vmax = df[metric].min(), drop_value
         cbar = plt.cm.ScalarMappable(norm = matplotlib.colors.SymLogNorm(linthresh = 10, vmin=vmin, vmax=vmax, base = 10), cmap = cmap)
 
     if metric == "ign" and target == "pgm" and metric_ticks == None:
         drop_value = 4
         metric_ticks = [0, 1, 2, 3, 4]
         
-        vmin, vmax = df[metric].min(), df[metric].max()
+        vmin, vmax = df[metric].min(), drop_value
         cbar = plt.cm.ScalarMappable(norm = matplotlib.colors.Normalize(vmin=0, vmax=4, clip = True), cmap = cmap)
 
 
-    drop_percentage_due_to_high_value = (df[metric]>drop_value).mean()
+    num_countries_dropped = (df[metric]>drop_value).sum()
     df[metric] = np.where(df[metric] > drop_value, drop_value, df[metric])
 
     sns.set_theme(style = "white")
@@ -183,9 +183,15 @@ def choropleth_map(submission, metric, target, shapefile, window = None, cmap = 
                 format = matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')),
                 label = metric.upper(),
                 ticks = metric_ticks)
+    
+    if num_countries_dropped > 0:
+        info_text = f'# countries truncated to {drop_value}: {num_countries_dropped}'
+        ib_ax = fig.add_axes(info_box_placement)
+        ib_ax.text(0, 0, info_text, ha = "left", fontstyle = "italic")
+        ib_ax.axis('off')
 
     # Title
     formatted_year = int(window.split("_")[-1])
-    formatted_model = model.replace(team, '').replace("_", " ").strip().title()
+    formatted_model = model.replace(team, '').strip().lstrip("_")
     formatted_team = team.replace("_", " ").strip().title()
-    ax.set_title(f'{formatted_team}, {formatted_model}, {formatted_year}. Share of values constrained to {drop_value}: {drop_percentage_due_to_high_value:.0%} ', fontsize=16, pad = 20)
+    ax.set_title(f'Team: {formatted_team}, Model: {formatted_model}, Window: {formatted_year}', fontsize=16, pad = 20, loc = "left", fontweight = "bold")
