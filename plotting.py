@@ -85,25 +85,22 @@ def ribbon_plot(df: pd.DataFrame, title: str):
         ax.fill_between(dat.month_id, dat.p25, dat.p75, alpha = 0.2)
     ax.set_title(title)
 
-def prepare_geo_data(submission, target, window = None:
+def prepare_geo_data(submission, target, shapefile, window = None:
     if target == "cm":
-        map_file = base / "shapefiles" / "countries.shp"
         unit = "country_id"
     elif target == "pgm":
-        map_file = base / "shapefiles" / "priogrid.shp"    
         unit = "priogrid_gid"
     else:
         raise ValueError(f'Target must be "cm" or "pgm".')
-
-
+    
     with open(submission/"submission_details.yml") as f:
         submission_details = yaml.safe_load(f)
         
-    map = gpd.read_file(map_file)
+    map = gpd.read_file(shapefile)
     if target == "pgm":
-         map = map.rename(columns = {"priogrid_i": "priogrid_gid"})
+         map = map.rename(columns = {"priogrid_i": "priogrid_gid"}) # fix this in shapefile
 
-    eval_file = base / "submissions" / f"eval_{target}_per_unit.parquet"
+    eval_file = submission / f"eval_{target}_per_unit.parquet"
     eval_df = pq.read_table(eval_file).to_pandas()
     eval_df = eval_df.reset_index()
 
