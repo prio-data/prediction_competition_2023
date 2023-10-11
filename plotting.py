@@ -85,20 +85,20 @@ def ribbon_plot(df: pd.DataFrame, title: str):
         ax.fill_between(dat.month_id, dat.p25, dat.p75, alpha = 0.2)
     ax.set_title(title)
 
-def prepare_geo_data(submission, target, shapefile, window = None:
+def prepare_geo_data(submission, target, shapefile, window = None):
     if target == "cm":
         unit = "country_id"
     elif target == "pgm":
         unit = "priogrid_gid"
     else:
         raise ValueError(f'Target must be "cm" or "pgm".')
-    
+
     with open(submission/"submission_details.yml") as f:
         submission_details = yaml.safe_load(f)
         
     map = gpd.read_file(shapefile)
     if target == "pgm":
-         map = map.rename(columns = {"priogrid_i": "priogrid_gid"}) # fix this in shapefile
+            map = map.rename(columns = {"priogrid_i": "priogrid_gid"}) # fix this in shapefile
 
     eval_file = submission / f"eval_{target}_per_unit.parquet"
     eval_df = pq.read_table(eval_file).to_pandas()
@@ -106,7 +106,7 @@ def prepare_geo_data(submission, target, shapefile, window = None:
 
     if window != None:
         eval_df = eval_df[eval_df["window"] == window]
-    
+
     df = pd.merge(eval_df, map, left_on = unit, right_on = unit)
     team = submission_details["team"]
     model = submission_details["even_shorter_identifier"]
@@ -116,8 +116,8 @@ def prepare_geo_data(submission, target, shapefile, window = None:
     df = gpd.GeoDataFrame(df)
     return df, eval_df, team, model
 
-def choropleth_map(submission, metric, target, window = None, cmap = "viridis", metric_ticks = None, crs = ccrs.EqualEarth(), views_logo = True) -> None:
-    df, eval_df, team, model = prepare_geo_data(submission, target = target, window = window)
+def choropleth_map(submission, metric, target, shapefile, window = None, cmap = "viridis", metric_ticks = None, crs = ccrs.EqualEarth(), views_logo = True) -> None:
+    df, eval_df, team, model = prepare_geo_data(submission, target = target, shapefile = shapefile, window = window)
 
     if metric == "crps" and target == "cm" and metric_ticks == None:
         drop_value = 1000
@@ -132,7 +132,7 @@ def choropleth_map(submission, metric, target, window = None, cmap = "viridis", 
         
         vmin, vmax = df[metric].min(), df[metric].max()
         cbar = plt.cm.ScalarMappable(norm = matplotlib.colors.Normalize(vmin=0, vmax=4, clip = True), cmap = cmap)
-    
+
     if metric == "crps" and target == "pgm" and metric_ticks == None:
         drop_value = 1000
         metric_ticks = [0, 1, 10, 100, 500, 1000]
@@ -154,7 +154,7 @@ def choropleth_map(submission, metric, target, window = None, cmap = "viridis", 
     sns.set_theme(style = "white")
 
     df = df.to_crs(crs.proj4_init + " +over")
-    
+
     fig, ax = plt.subplots(figsize = (24, 8), subplot_kw = {"projection": crs})
     ax.gridlines(draw_labels=True, zorder = 0)
     ax.add_geometries(df["geometry"], crs = crs, facecolor = "none", edgecolor = "whitesmoke")
@@ -178,7 +178,7 @@ def choropleth_map(submission, metric, target, window = None, cmap = "viridis", 
             column = metric,
             norm = matplotlib.colors.SymLogNorm(linthresh = 1),
             cmap = cmap)
-    
+
     fig.colorbar(cbar, ax=ax, 
                 format = matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')),
                 label = metric.upper(),
