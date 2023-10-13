@@ -112,7 +112,7 @@ def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike 
         css_alt_rows = 'background-color: #e6e6e6; color: black;'
         highlight_props = "background-color: #00718f; color: #fafafa;"
         df = df.style \
-                .format(decimal=',', thousands='.', precision=3) \
+                .format(decimal='.', thousands=' ', precision=3) \
                 .highlight_min(axis=0, props=highlight_props) \
                 .set_table_styles([
                     {'selector': 'tr:nth-child(even)', 'props': css_alt_rows}
