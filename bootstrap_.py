@@ -94,7 +94,7 @@ def copy_parquet_file(input_file,year,cmorpgm):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Copy a Parquet file.")
     parser.add_argument("input_file", help="Path to the input Parquet file.")
-    parser.add_argument("output_file", help="Path to the output Parquet file.")
+    #parser.add_argument("output_file", help="Path to the output Parquet file.")
     parser.add_argument("year_of_actuals",type=int,help="Year of actuals")
     parser.add_argument("cm_or_pgm",type=str,help='Enter cm or pgm based on file name')
     args = parser.parse_args()
