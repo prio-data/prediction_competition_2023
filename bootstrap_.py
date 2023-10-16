@@ -71,7 +71,7 @@ def save_models(level,model_names,model_list, filepath):
             year_record['expanded_df'].to_parquet(filename)
         i = i + 1
         
-def copy_parquet_file(input_file,year,cmorpgm):
+def benchmark_bootstrap(input_file,year,cmorpgm):
     try:
         # Read the input Parquet file
         df = pd.read_parquet(input_file)
@@ -98,4 +98,4 @@ if __name__ == "__main__":
     parser.add_argument("year_of_actuals",type=int,help="Year of actuals")
     parser.add_argument("cm_or_pgm",type=str,help='Enter cm or pgm based on file name')
     args = parser.parse_args()
-    copy_parquet_file(args.input_file,args.year_of_actuals,args.cm_or_pgm)
+    benchmark_bootstrap(args.input_file,args.year_of_actuals,args.cm_or_pgm)
