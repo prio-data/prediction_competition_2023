@@ -60,9 +60,9 @@ def evaluate_forecast(forecast: pd.DataFrame,
     ign = calculate_metrics(observed, predictions, metric = "ign", bins = bins, aggregate_over="nothing")
     
     # Long-format out
-    crps.rename(columns={"ign": "value"}, inplace=True)
+    crps.rename(columns={"crps": "value"}, inplace=True)
     ign.rename(columns={"ign": "value"}, inplace=True)
-    mis.rename(columns={"ign": "value"}, inplace=True)
+    mis.rename(columns={"mis": "value"}, inplace=True)
     
     (save_to / "metric=crps").mkdir(exist_ok=True, parents = True)
     (save_to / "metric=ign").mkdir(exist_ok=True, parents = True)
@@ -115,7 +115,7 @@ def main():
                 for year in years:
                     if any((submission / target).glob("**/*.parquet")): # test if there are prediction files in the target
                         actuals, predictions = match_forecast_with_actuals(submission, actuals_folder, target, year)
-                        save_to = submission / "eval" / f'target={target}' / f'year={year}'
+                        save_to = submission / "eval" / f'{target}' / f'year={year}'
                         evaluate_forecast(forecast = predictions, 
                                         actuals = actuals, 
                                         target = target,
