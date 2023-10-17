@@ -5,6 +5,42 @@ import yaml
 import pandas as pd
 import argparse
 
+def team_and_identifier(submission):
+    with open(submission/"submission_details.yml") as f:
+        submission_details = yaml.safe_load(f)
+    identifier = submission_details["even_shorter_identifier"]
+    team = submission_details["team"]
+    return team, identifier
+
+def get_eval(submission, target, groupby: list[str] = None):
+    df = get_predictions(submission / "eval", target = target)
+
+    if target == "cm":
+        unit = "country_id"
+    elif target == "pgm":
+        unit = "priogrid_gid"
+    else:
+        raise ValueError(f'Target must be either "cm" or "pgm".')
+    
+    df = df.pivot_table(values=["value"], index = ["month_id", unit], columns = "metric")
+
+    if "year" in groupby:
+        df = df.reset_index()
+        df["year"] = views_month_id_to_year(df["month_id"])
+        df = df.drop(columns="month_id")
+        df = df.set_index([unit, "year"])
+        
+    if groupby == None:
+        pass
+    else:
+        df = df.groupby(level=groupby).mean().reset_index()
+    
+    team, model = team_and_identifier(submission)
+    
+    df["Team"] = team
+    df["Model"] = model
+    return df
+
 def setup_eval_df(eval_file: str|os.PathLike, team: str, identifier: str, target: str, window: str) -> pd.DataFrame:
     df: pd.DataFrame = pq.read_table(eval_file).to_pandas()
     df["window"] = window
