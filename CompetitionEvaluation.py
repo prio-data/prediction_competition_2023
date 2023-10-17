@@ -56,47 +56,44 @@ def structure_data(observed: pd.DataFrame, predictions: pd.DataFrame, draw_colum
 
     # The samples must be named "member" and the outcome variable needs to be named the same in xs.crps_ensemble()
     
-    predictions = predictions.reset_index()
-    observed = observed.reset_index()
+    if predictions.index.names != [None]:
+        predictions = predictions.reset_index()
+    if observed.index.names != [None]:
+        observed = observed.reset_index()
 
-    if "index" in observed.columns:
-        observed = observed.drop(columns = ["index"])
-    if "index" in predictions.columns:
-        predictions = predictions.drop(columns = ["index"])
+    # assert "month_id" in observed.columns,  f"'month_id' column not found in observed data. Columns in data: {observed.columns}."
+    # assert "month_id" in predictions.columns,  f"'month_id' column not found in predictions data. Columns in data: {predictions.columns}."
 
-    assert "month_id" in observed.columns,  f"'month_id' column not found in observed data. Columns in data: {observed.columns}."
-    assert "month_id" in predictions.columns,  f"'month_id' column not found in predictions data. Columns in data: {predictions.columns}."
+    # assert observed.columns.isin(['country_id','priogrid_gid']).any(),  f"'country_id'/'priogrid_gid' column not found in observed data."
+    # assert predictions.columns.isin(['country_id','priogrid_gid']).any(),  f"'country_id'/'priogrid_gid' column not found in predictions data."
 
-    assert observed.columns.isin(['country_id','priogrid_gid']).any(),  f"'country_id'/'priogrid_gid' column not found in observed data."
-    assert predictions.columns.isin(['country_id','priogrid_gid']).any(),  f"'country_id'/'priogrid_gid' column not found in predictions data."
+    # assert draw_column_name in predictions.columns, f"{draw_column_name} not in predictions data. Columns in data: {predictions.columns}."
 
-    assert draw_column_name in predictions.columns, f"{draw_column_name} not in predictions data. Columns in data: {predictions.columns}."
-
-    assert data_column_name in predictions.columns, f"{data_column_name} not in predictions data. Columns in data: {predictions.columns}."
-    assert data_column_name in observed.columns, f"{data_column_name} not in observed data. Columns in data: {observed.columns}."
+    # assert data_column_name in predictions.columns, f"{data_column_name} not in predictions data. Columns in data: {predictions.columns}."
+    # assert data_column_name in observed.columns, f"{data_column_name} not in observed data. Columns in data: {observed.columns}."
 
 
-    assert len(observed.columns) == 3, f"Observed data should only be three variables: 'month_id', 'country_id' (or 'priogrid_gid'), and {data_column_name}. Columns in data: {observed.columns}."
-    assert len(predictions.columns) == 4, f"Predictions data should only be four variables: 'month_id', 'country_id' (or 'priogrid_gid'), {draw_column_name}, and {data_column_name}. Columns in data: {predictions.columns}."
+    # assert len(observed.columns) == 3, f"Observed data should only be three variables: 'month_id', 'country_id' (or 'priogrid_gid'), and {data_column_name}. Columns in data: {observed.columns}."
+    # assert len(predictions.columns) == 4, f"Predictions data should only be four variables: 'month_id', 'country_id' (or 'priogrid_gid'), {draw_column_name}, and {data_column_name}. Columns in data: {predictions.columns}."
 
-    onmonths = len(observed["month_id"].unique())
-    pnmonths = len(predictions["month_id"].unique())
+    # onmonths = len(observed["month_id"].unique())
+    # pnmonths = len(predictions["month_id"].unique())
 
-    if "priogrid_gid" in predictions.columns:
-        onunits = len(observed["priogrid_gid"].unique())
-        pnunits = len(predictions["priogrid_gid"].unique())
-    elif "country_id" in predictions.columns:
-        onunits = len(observed["country_id"].unique())
-        pnunits = len(predictions["country_id"].unique())
-    else:
-        TypeError("priogrid_gid or country_id must be an identifier")
+    # if "priogrid_gid" in predictions.columns:
+    #     onunits = len(observed["priogrid_gid"].unique())
+    #     pnunits = len(predictions["priogrid_gid"].unique())
+    # elif "country_id" in predictions.columns:
+    #     onunits = len(observed["country_id"].unique())
+    #     pnunits = len(predictions["country_id"].unique())
+    # else:
+    #     TypeError("priogrid_gid or country_id must be an identifier")
     
-    pnmembers = len(predictions[draw_column_name].unique())
+    # pnmembers = len(predictions[draw_column_name].unique())
 
-    assert len(predictions.index) == pnmonths*pnunits*pnmembers, f"Predictions data is not a balanced dataset with nobs: {len(predictions.index)} != months: {pnmonths} * units: {pnunits} * {draw_column_name}: {pnmembers}."
-    assert len(observed.index) == onmonths*onunits, f"Observed data is not a balanced dataset with nobs: {len(observed.index)} != months: {onmonths} * units: {onunits}."
-    assert pnmonths == onmonths, f'Months in prediction dataset ({pnmonths}) is not the same as in observed dataset ({onmonths}).'
-    assert pnunits == onunits, f'Units in prediction dataset ({pnunits}) is not the same as in observed dataset ({onunits}).'
+    # assert len(predictions.index) == pnmonths*pnunits*pnmembers, f"Predictions data is not a balanced dataset with nobs: {len(predictions.index)} != months: {pnmonths} * units: {pnunits} * {draw_column_name}: {pnmembers}."
+    # assert len(observed.index) == onmonths*onunits, f"Observed data is not a balanced dataset with nobs: {len(observed.index)} != months: {onmonths} * units: {onunits}."
+    # assert pnmonths == onmonths, f'Months in prediction dataset ({pnmonths}) is not the same as in observed dataset ({onmonths}).'
+    # assert pnunits == onunits, f'Units in prediction dataset ({pnunits}) is not the same as in observed dataset ({onunits}).'
 
     # To simplify internal affairs:
     predictions = predictions.rename(columns = {draw_column_name: "member", data_column_name: "outcome"})
@@ -139,6 +136,7 @@ def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric:
         One of 'crps' (Ranked Probability Score), 'ign' (Ignorance Score), and 'mis' (Interval Score). 
     aggregate_over : str or list of str, optional
         Dimensions over which to compute mean after computing the evaluation metrics. E.g., 'month_id' calculates mean scores per unit, while ['month_id', 'country_id'] returns the global average.
+        Can also be "nothing". This will return the unaggregated scores.
     
     Additional arguments:
     
@@ -162,6 +160,10 @@ def calculate_metrics(observed: xr.DataArray, predictions: xr.DataArray, metric:
 
     interval_args = ['prediction_interval_level']
     interval_dict = {k: kwargs.pop(k) for k in dict(kwargs) if k in interval_args}
+
+    # Hack to circumvent the hardcoded res.mean() aggregation in xskillscore.crps_ensemble
+    if aggregate_over == "nothing":
+        predictions = predictions.expand_dims({"nothing": 1}) 
 
     # Calculate average crps for each step (so across the other dimensions)
     if metric == "crps":
