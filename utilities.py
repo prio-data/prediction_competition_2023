@@ -7,7 +7,7 @@ import itertools
 from typing import Literal
 import datetime
 
-type TargetType = Literal["cm", "pgm"]
+TargetType = Literal["cm", "pgm"]
 
 def date_to_views_month_id(date: datetime.date) -> int:
     views_start_date = datetime.date(1980, 1, 1)
@@ -57,27 +57,45 @@ def list_submissions(submissions_folder: str|os.PathLike) -> list[os.PathLike]:
     submissions_folder = Path(submissions_folder)
     return [submission for submission in submissions_folder.iterdir() if submission.is_dir() and not submission.stem == "__MACOSX"]
 
-def read_features(feature_folder: str|os.PathLike, target: TargetType, filters) -> pd.DataFrame:
+def read_parquet(data_path: str|os.PathLike, filters = None) -> pd.DataFrame:
     """
+    This function does not need to be used directly, it is mostly to document how to read folders with parquet files or single parquet files with a filter.
+    
+    Notes
+    -----
+
     See https://arrow.apache.org/docs/python/compute.html#filtering-by-expressions for filter examples
     
-    import pyarrow.compute as pac
-    filter = pac.field("year") >= 2017
-    """
-    feature_folder = Path(feature_folder)
-    assert (feature_folder / target).exists()
-    assert (feature_folder / "cm_features.parquet").exists()
+    Examples
+    --------
+    >>> import pyarrow.compute as pac
+    >>> import pyarrow.parquet as pq
+    >>> filter = pac.field("year") >= 2017
+    >>> df = pq.ParquetDataset(path_to_folder_with_apache_hive_structured_parquet_files, filters = filter).read().to_pandas()
 
-    if target == "pgm":
-        data_path = feature_folder / target
-    elif target == "cm":
-        data_path = feature_folder / "cm_features.parquet"
-    else:
-        ValueError(f'Target must be either "pgm" or "cm".')
-        
+    """
+
     table = pq.ParquetDataset(data_path, filters = filters)
     return table.read().to_pandas()
 
+def get_predictions(submission: str|os.PathLike, target: TargetType, filters = None) -> pd.DataFrame:
+    """
+    Reads folders with a "pgm" or "cm" sub-folder containing Apache Hive structured parquet-files.
+    
+    Notes
+    -----
+    See https://arrow.apache.org/docs/python/compute.html#filtering-by-expressions for filter examples.
 
-def get_predictions(submission: str|os.PathLike, target: TargetType) -> pad.Dataset:
-    pass
+    Examples
+    --------
+    >>> import pyarrow.compute as pac
+    >>> import pyarrow.parquet as pq
+    >>> from utilities import list_submissions, get_predictions
+    
+    >>> filter = pac.field("year") >= 2017
+    >>> subs = list_submissions(./submissions/")
+    >>> df = get_predictions(subs[0], target = "pgm", filters = filter)
+
+    """
+    submission = Path(submission)
+    return read_parquet(submission / target, filters = filters)
