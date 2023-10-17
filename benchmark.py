@@ -1,9 +1,12 @@
+# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018
+
+
 import argparse
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
 from pathlib import Path
-import pac
+import pyarrow.compute as pac
 
 def global_bootstrap_benchmark(feature_folder, target, year) -> pd.DataFrame:
     """
@@ -39,8 +42,10 @@ if __name__ == "__main__":
     feature_folder = Path(args.feature_folder)
     target = args.target
     year = args.year
-
+    
     result = global_bootstrap_benchmark(feature_folder, target, year)
 
     # Do something with the result, e.g., print or save it.
     print(result)
+
+# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018
