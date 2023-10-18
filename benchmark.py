@@ -30,6 +30,7 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year) -> p
         df["outcome"] = np.random.choice(pool["ged_sb"], size=(df.shape[0], 1000), replace=True).tolist()
         df = df.explode('outcome').astype('int32')
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
+        df.set_index(['month_id',unit,'draw'],inplace=True)        
         return df
     elif benchmark_name=="hist":
         filter = pac.field("year") == year - 1
@@ -42,6 +43,7 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year) -> p
         df["outcome"] = [[value] * 1000 for value in pool["ged_sb"]]
         df = df.explode('outcome').astype('int32')
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
+        df.set_index(['month_id',unit,'draw'],inplace=True)
         return df
         
     else:
