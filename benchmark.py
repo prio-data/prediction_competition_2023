@@ -32,7 +32,18 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year) -> p
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
         return df
     elif benchmark_name=="hist":
-        return df##
+        filter = pac.field("year") == year - 1
+        pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+
+        filter = pac.field("year") == year
+        df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
+
+        #df["outcome"] = np.random.choice(pool["ged_sb"], size=(df.shape[0], 1000), replace=True).tolist()
+        df["outcome"] = [[value] * 1000 for value in pool["ged_sb"]]
+        df = df.explode('outcome').astype('int32')
+        df['draw'] = df.groupby(['month_id', unit]).cumcount()
+        return df
+        
     else:
         raise ValueError('Benchmark must be "boot" or "hist"')
 
@@ -51,6 +62,7 @@ if __name__ == "__main__":
     year = args.year
     benchmark_name = args.benchmark_name
     result = global_bootstrap_benchmark(benchmark_name, feature_folder, target, year)
+    result.to_parquet(f'{feature_folder}/{benchmark_name}_{target}_{year}.parquet')
 
     # Do something with the result, e.g., print or save it.
     print(result)
