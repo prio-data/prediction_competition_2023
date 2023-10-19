@@ -21,12 +21,15 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year) -> p
         raise ValueError('Target must be "pgm" or "cm.')
     
     if benchmark_name == "boot":
-        filter = pac.field("year") == year - 1
-        pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
-
+        #filter = pac.field("year") == year - 1
+        #pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+        
         filter = pac.field("year") == year
         df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
-
+        
+        filter = (pac.field("month_id") <= df.month_id.min() - 3) & (pac.field("month_id") > df.month_id.min() - (12+3))
+        pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+        
         df["outcome"] = np.random.choice(pool["ged_sb"], size=(df.shape[0], 1000), replace=True).tolist()
         df = df.explode('outcome').astype('int32')
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
