@@ -21,8 +21,6 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year) -> p
         raise ValueError('Target must be "pgm" or "cm.')
     
     if benchmark_name == "boot":
-        #filter = pac.field("year") == year - 1
-        #pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
         
         filter = pac.field("year") == year
         df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
