@@ -23,23 +23,38 @@ def main():
     year = args.year
     benchmark_name = args.benchmark_name
     month_lag = args.month_lag
-    result = global_bootstrap_benchmark(benchmark_name, feature_folder, target, year,month_lag)
+    result = global_benchmark(benchmark_name, feature_folder, target, year,month_lag)
     result.to_parquet(f'{feature_folder}/{benchmark_name}_{target}_{year}.parquet')
 
     # Do something with the result, e.g., print or save it.
     print(result)
-
-def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year,month_lag) -> pd.DataFrame:
-    """
-    Draws a random sample with replacement from the complete global pool of fatalities data from the year before.
-    """
     
+def select_unit(target):
     if target == "pgm":
-        unit = "priogrid_gid"
+        return "priogrid_gid"
     elif target == "cm":
-        unit = "country_id"
+        return "country_id"
     else:
-        raise ValueError('Target must be "pgm" or "cm".')
+        raise ValueError('Target must be "pgm" or "cm')
+    
+def filter_units(feature_folder,target,year,unit,month_lag):
+    filter = pac.field("year") == year
+    df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
+        
+    filter = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12+month_lag))
+    pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+    return df
+    
+""" def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year,month_lag) -> pd.DataFrame:
+
+    # if target == "pgm":
+    #     unit = "priogrid_gid"
+    # elif target == "cm":
+    #     unit = "country_id"
+    # else:
+    #     raise ValueError('Target must be "pgm" or "cm".')
+
+    unit = select_unit(target)
     
     if benchmark_name == "boot":
         
@@ -50,10 +65,12 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year,month
         pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
         
         df["outcome"] = np.random.choice(pool["ged_sb"], size=(df.shape[0], 1000), replace=True).tolist()
+        
         df = df.explode('outcome').astype('int32')
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
         df.set_index(['month_id',unit,'draw'],inplace=True)        
         return df
+    
     
     elif benchmark_name=="hist":
         filter = pac.field("year") == year
@@ -61,18 +78,60 @@ def global_bootstrap_benchmark(benchmark_name,feature_folder, target, year,month
         
         filter = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12+month_lag))
         pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+        
         df["outcome"] = [np.random.poisson(value, 1000) for value in pool["ged_sb"]]
+        
         df = df.explode('outcome').astype('int32')
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
         df.set_index(['month_id',unit,'draw'],inplace=True)
         return df
     else:
-        raise ValueError('Benchmark must be "boot" or "hist"')
+        raise ValueError('Benchmark must be "boot" or "hist"') """
     
+def generate_outcomes_poisson(data, value_column_name, outcome_column_name, num_samples=1000):
+    """
+    Generate outcomes using the Poisson distribution.
+
+    Parameters:
+    - data: DataFrame containing the data.
+    - value_column_name: The name of the column with values to use for the Poisson distribution.
+    - outcome_column_name: The name of the column to store the generated outcomes.
+    - num_samples: The number of samples to generate (default is 1000).
+
+    Returns:
+    - The DataFrame with the generated outcomes added.
+    """
+    return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
+
+def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
+    unit = select_unit(target)
+
+    filter = pac.field("year") == year
+    df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
+    
+    filter = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12+month_lag))
+    pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+    
+    if benchmark_name == "hist":
+        df["outcome"] = [np.random.poisson(value, 1000) for value in pool["ged_sb"]]
+    elif benchmark_name == "boot":
+        df["outcome"] = np.random.choice(pool["ged_sb"], size=(df.shape[0], 1000), replace=True).tolist()
+        
+    else:
+        raise ValueError('Benchmark must be "boot" or "hist"')
+        
+    df = df.explode('outcome').astype('int32')
+    df['draw'] = df.groupby(['month_id', unit]).cumcount()
+    df.set_index(['month_id',unit,'draw'],inplace=True)
+    
+    return df 
+
 
 if __name__ == "__main__":
     main()
 
 
 
+    
+        
 # python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot
