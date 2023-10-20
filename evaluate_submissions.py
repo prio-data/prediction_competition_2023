@@ -88,7 +88,7 @@ def evaluate_all_submissions(submissions: str|os.PathLike,
                              windows: list[str], 
                              expected: int, 
                              bins: list[float],
-                             sample_column: str = "draw", 
+                             draw_column: str = "draw", 
                              data_column: str = "outcome") -> None:
     """Loops over all submissions in the submissions folder, match them with the correct test dataset, and estimates evaluation metrics. 
     Stores evaluation data as .parquet files in {submissions}/{submission_name}/eval/{target}/window={window}/.
@@ -107,7 +107,7 @@ def evaluate_all_submissions(submissions: str|os.PathLike,
         The expected numbers of samples. Due to how Ignorance Score is defined, all IGN metric comparisons must be across models with equal number of samples.
     bins : list[float]
         The binning scheme used in the Ignorance Score.
-    sample_column : str
+    draw_column : str
         The name of the sample column. We assume samples are drawn independently from the model. Default = "draw"
     data_column : str
         The name of the data column. Default = "outcome"
@@ -130,8 +130,8 @@ def evaluate_all_submissions(submissions: str|os.PathLike,
                                         actuals = observed_df, 
                                         target = target,
                                         expected_samples = expected,
-                                        draw_column_name=sample_column,
-                                        data_column_name=data_column,
+                                        draw_column=draw_column,
+                                        data_column=data_column,
                                         bins = bins,
                                         save_to = save_to)
         except Exception as e:
@@ -145,7 +145,7 @@ def main():
     parser.add_argument('-t', metavar='targets', nargs = "+", type=str, help='pgm or cm or both', default = ["pgm", "cm"])
     parser.add_argument('-w', metavar='windows', nargs = "+", type=str, help='windows to evaluate', default = ["Y2018", "Y2019", "Y2020", "Y2021"])
     parser.add_argument('-e', metavar='expected', type=int, help='expected samples', default = 1000)
-    parser.add_argument('-sc', metavar='sample_column', type=str, help='(Optional) name of column for the unique samples', default = "draw")
+    parser.add_argument('-sc', metavar='draw_column', type=str, help='(Optional) name of column for the unique samples', default = "draw")
     parser.add_argument('-dc', metavar='data_column', type=str, help='(Optional) name of column with data, must be same in both observed and predictions data', default = "outcome")
     parser.add_argument('-ib', metavar = 'bins', nargs = "+", type = float, help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.', default = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5])    
 
@@ -157,11 +157,11 @@ def main():
     expected = args.e
     targets = args.t
     windows = args.w
-    sample_column = args.sc
+    draw_column = args.sc
     data_column = args.dc
     bins = args.ib
 
-    evaluate_all_submissions(submissions, acutals, targets, windows, expected, sample_column, data_column, bins)
+    evaluate_all_submissions(submissions, acutals, targets, windows, expected, draw_column, data_column, bins)
 
 
 if __name__ == "__main__":
