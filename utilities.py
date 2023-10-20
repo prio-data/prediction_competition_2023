@@ -8,6 +8,9 @@ from typing import Literal
 import datetime
 import yaml
 
+import logging
+logging.getLogger(__name__)
+
 TargetType = Literal["cm", "pgm"]
 
 def get_submission_details(submission: str|os.PathLike) -> dict:
@@ -156,6 +159,24 @@ def read_parquet(data_path: str|os.PathLike, filters = None) -> pd.DataFrame:
     table = pq.ParquetDataset(data_path, filters = filters)
     return table.read().to_pandas()
 
+def data_in_target(submission: str|os.PathLike, target: TargetType) -> bool:
+    """Test if there are any .parquet-files in the {submission}/{target} sub-folders.
+
+    Parameters
+    ----------
+    submission : str | os.PathLike
+        Path to a folder only containing folders structured like a submission_template
+    target : TargetType
+        A string, either "pgm" for PRIO-GRID-months, or "cm" for country-months.
+
+    Returns
+    -------
+    bool
+        True if there are any .parquet files in target sub-folders.
+    """
+    return any((submission / target).glob("**/*.parquet"))
+
+
 def get_target_data(submission: str|os.PathLike, target: TargetType, filters = None) -> pd.DataFrame:
     """Reads folders with a "pgm" or "cm" sub-folder containing Apache Hive structured parquet-files.
     
@@ -175,7 +196,7 @@ def get_target_data(submission: str|os.PathLike, target: TargetType, filters = N
 
     """
     submission = Path(submission)
-    return read_parquet(submission / target, filters = filters)
+    return read_parquet(submission / target, filters = filters)    
 
 def get_window_filters(window):
     pass

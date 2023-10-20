@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import argparse
 
-from utilities import list_submissions, get_target_data, views_month_id_to_year, views_month_id_to_month, TargetType, get_submission_details
+from utilities import list_submissions, get_target_data, views_month_id_to_year, views_month_id_to_month, TargetType, get_submission_details, data_in_target
 
 
 def get_eval(submission: str|os.PathLike, target: TargetType, groupby: str|list[str] = None) -> pd.DataFrame:
@@ -33,9 +33,14 @@ def get_eval(submission: str|os.PathLike, target: TargetType, groupby: str|list[
     ------
     ValueError
         Target must be "cm" or "pgm".
+    FileNotFoundError
+        There must be .parquet-files in the submission/{target} sub-folders.
     """
 
     submission = Path(submission)
+    if not data_in_target(submission, target):
+        raise FileNotFoundError
+
     df = get_target_data(submission / "eval", target = target)
 
     if target == "cm":
@@ -113,7 +118,16 @@ def evaluation_table(submissions: str|os.PathLike, target: TargetType, groupby: 
 
     submissions = list_submissions(Path(submissions))
 
-    eval_data = [get_eval(submission, target, groupby) for submission in submissions]
+    submissions = [submission for submission in submissions if data_in_target(submission, target)]
+
+    # Silently accept that there might not be evaluation data for all submissions for all targets for all windows.
+    eval_data = []
+    for submission in submissions:
+        try:
+            eval_df = get_eval(submission, target, groupby)
+            eval_data.append(eval_df)
+        except FileNotFoundError as e:
+            pass
     df = pd.concat(eval_data)
 
     if groupby == None:    
