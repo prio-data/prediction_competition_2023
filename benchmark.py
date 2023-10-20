@@ -42,7 +42,7 @@ def filter_units(feature_folder,target,year,unit,month_lag):
     filter = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12+month_lag))
     pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
     return df,pool
-        
+
 def generate_historical_poisson(data, value_column_name, num_samples=1000):
     return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
 
