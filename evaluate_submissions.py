@@ -71,16 +71,17 @@ def evaluate_forecast(forecast: pd.DataFrame,
     ign.to_parquet(save_to / "metric=ign" / "ign.parquet")
     mis.to_parquet(save_to / "metric=mis" / "mis.parquet")
 
-def match_forecast_with_actuals(submission, actuals_folder, target: TargetType, year):
+def match_forecast_with_actuals(submission, actuals_folder, target: TargetType, window: str):
 
-    filter = pyarrow.compute.field("year") == year
+    filter = pyarrow.compute.field("window") == window
     actuals = get_predictions(actuals_folder, target = target, filters = filter)
     predictions = get_predictions(submission, target = target, filters = filter)
 
-    predictions.drop(columns=["year"], inplace = True)
-    actuals.drop(columns=["year"], inplace = True)
+    predictions.drop(columns=["window"], inplace = True)
+    actuals.drop(columns=["window"], inplace = True)
 
     return actuals, predictions
+
 
 def main():
     parser = argparse.ArgumentParser(description="Method for evaluation of submissions to the ViEWS Prediction Challenge",
@@ -88,7 +89,7 @@ def main():
     parser.add_argument('-s', metavar='submissions', type=str, help='path to folder with submissions complying with submission_template')
     parser.add_argument('-a', metavar='actuals', type=str, help='path to folder with actuals')
     parser.add_argument('-t', metavar='targets', nargs = "+", type=str, help='pgm or cm or both', default = ["pgm", "cm"])
-    parser.add_argument('-y', metavar='years', nargs = "+", type=int, help='yearly windows to evaluate', default = [2018, 2019, 2020, 2021])
+    parser.add_argument('-w', metavar='windows', nargs = "+", type=str, help='windows to evaluate', default = ["Y2018", "Y2019", "Y2020", "Y2021"])
     parser.add_argument('-e', metavar='expected', type=int, help='expected samples', default = 1000)
     parser.add_argument('-sc', metavar='sample-column-name', type=str, help='(Optional) name of column for the unique samples', default = "draw")
     parser.add_argument('-dc', metavar='data-column-name', type=str, help='(Optional) name of column with data, must be same in both observed and predictions data', default = "outcome")
@@ -101,7 +102,7 @@ def main():
     actuals_folder = Path(args.a)
     expected_samples = args.e
     targets = args.t
-    years = args.y
+    windows = args.w
     sample_column_name = args.sc
     data_column_name = args.dc
     bins = args.ib
@@ -112,10 +113,10 @@ def main():
         try:
             logging.info(f'Evaluating {submission.name}')
             for target in targets:
-                for year in years:
+                for window in windows:
                     if any((submission / target).glob("**/*.parquet")): # test if there are prediction files in the target
-                        actuals, predictions = match_forecast_with_actuals(submission, actuals_folder, target, year)
-                        save_to = submission / "eval" / f'{target}' / f'year={year}'
+                        actuals, predictions = match_forecast_with_actuals(submission, actuals_folder, target, window)
+                        save_to = submission / "eval" / f'{target}' / f'window={window}'
                         evaluate_forecast(forecast = predictions, 
                                         actuals = actuals, 
                                         target = target,
