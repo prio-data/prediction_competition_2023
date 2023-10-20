@@ -6,8 +6,14 @@ import os
 import itertools
 from typing import Literal
 import datetime
+import yaml
 
 TargetType = Literal["cm", "pgm"]
+
+def get_submission_details(submission):
+    with open(submission/"submission_details.yml") as f:
+        submission_details = yaml.safe_load(f)
+    return submission_details
 
 def date_to_views_month_id(date: datetime.date) -> int:
     views_start_date = datetime.date(1980, 1, 1)
@@ -28,6 +34,14 @@ def views_month_id_to_date(month_id: int) -> datetime.date:
     return pd.to_datetime(df, format = "%Y%M")
 
 def migrate_submission_from_old(submission: str|os.PathLike) -> None:
+    """Helper function to migrate old submission folder structure to new structure based on Apache Hive.
+
+    Parameters
+    ----------
+    submission : str | os.PathLike
+        Folder following the old submission_template setup
+    """
+
     submission = Path(submission)
     eval_data = itertools.chain(submission.glob(f'**/cm/*/eval/*.parquet'),
                                 submission.glob(f'**/pgm/*/eval/*.parquet'))
