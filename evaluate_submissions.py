@@ -82,6 +82,51 @@ def match_forecast_with_actuals(submission, actuals_folder, target: TargetType, 
 
     return actuals, predictions
 
+def evaluate_submission(submission: str|os.PathLike, 
+                        acutals: str|os.PathLike, 
+                        targets: list[TargetType], 
+                        windows: list[str], 
+                        expected: int, 
+                        bins: list[float],
+                        draw_column: str = "draw", 
+                        data_column: str = "outcome") -> None:
+    """Loops over all targets and windows in a submission folder, match them with the correct test dataset, and estimates evaluation metrics. 
+    Stores evaluation data as .parquet files in {submission}/eval/{target}/window={window}/.
+
+    Parameters
+    ----------
+    submission : str | os.PathLike
+        Path to a folder structured like a submission_template
+    acutals : str | os.PathLike
+        Path to actuals folder structured like {actuals}/{target}/window={window}/data.parquet
+    targets : list[TargetType]
+        A list of strings, either ["pgm"] for PRIO-GRID-months, or ["cm"] for country-months, or both.
+    windows : list[str]
+        A list of strings indicating the window of the test dataset. The string should match windows in data in the actuals folder.
+    expected : int
+        The expected numbers of samples. Due to how Ignorance Score is defined, all IGN metric comparisons must be across models with equal number of samples.
+    bins : list[float]
+        The binning scheme used in the Ignorance Score.
+    draw_column : str
+        The name of the sample column. We assume samples are drawn independently from the model. Default = "draw"
+    data_column : str
+        The name of the data column. Default = "outcome"
+    """
+    
+    for target in targets:
+        for window in windows:
+            if any((submission / target).glob("**/*.parquet")): # test if there are prediction files in the target
+                observed_df, pred_df = match_forecast_with_actuals(submission, acutals, target, window)
+                save_to = submission / "eval" / f'{target}' / f'window={window}'
+                evaluate_forecast(forecast = pred_df, 
+                                actuals = observed_df, 
+                                target = target,
+                                expected_samples = expected,
+                                draw_column=draw_column,
+                                data_column=data_column,
+                                bins = bins,
+                                save_to = save_to)
+
 def evaluate_all_submissions(submissions: str|os.PathLike, 
                              acutals: str|os.PathLike, 
                              targets: list[TargetType], 
@@ -115,25 +160,12 @@ def evaluate_all_submissions(submissions: str|os.PathLike,
     
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
-
     acutals = Path(acutals)
 
     for submission in submissions:
         try:
             logging.info(f'Evaluating {submission.name}')
-            for target in targets:
-                for window in windows:
-                    if any((submission / target).glob("**/*.parquet")): # test if there are prediction files in the target
-                        observed_df, pred_df = match_forecast_with_actuals(submission, acutals, target, window)
-                        save_to = submission / "eval" / f'{target}' / f'window={window}'
-                        evaluate_forecast(forecast = pred_df, 
-                                        actuals = observed_df, 
-                                        target = target,
-                                        expected_samples = expected,
-                                        draw_column=draw_column,
-                                        data_column=data_column,
-                                        bins = bins,
-                                        save_to = save_to)
+            evaluate_submission(submission, acutals, targets, windows, expected, bins, draw_column, data_column)
         except Exception as e:
             logging.error(f'{str(e)}')
 
