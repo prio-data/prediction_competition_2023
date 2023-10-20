@@ -1,7 +1,7 @@
 from pathlib import Path
 import yaml
 from CompetitionEvaluation import load_data, structure_data, calculate_metrics
-from utilities import list_submissions, get_predictions, TargetType
+from utilities import list_submissions, get_target_data, TargetType
 from dataclasses import dataclass
 import os
 import xarray
@@ -74,8 +74,8 @@ def evaluate_forecast(forecast: pd.DataFrame,
 def match_forecast_with_actuals(submission, actuals_folder, target: TargetType, window: str):
 
     filter = pyarrow.compute.field("window") == window
-    actuals = get_predictions(actuals_folder, target = target, filters = filter)
-    predictions = get_predictions(submission, target = target, filters = filter)
+    actuals = get_target_data(actuals_folder, target = target, filters = filter)
+    predictions = get_target_data(submission, target = target, filters = filter)
 
     predictions.drop(columns=["window"], inplace = True)
     actuals.drop(columns=["window"], inplace = True)

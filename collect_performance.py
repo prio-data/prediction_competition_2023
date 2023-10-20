@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import argparse
 
-from utilities import list_submissions, get_predictions, views_month_id_to_year, views_month_id_to_month, TargetType, get_submission_details
+from utilities import list_submissions, get_target_data, views_month_id_to_year, views_month_id_to_month, TargetType, get_submission_details
 
 
 def get_eval(submission: str|os.PathLike, target: TargetType, groupby: str|list[str] = None) -> pd.DataFrame:
@@ -36,7 +36,7 @@ def get_eval(submission: str|os.PathLike, target: TargetType, groupby: str|list[
     """
 
     submission = Path(submission)
-    df = get_predictions(submission / "eval", target = target)
+    df = get_target_data(submission / "eval", target = target)
 
     if target == "cm":
         unit = "country_id"
