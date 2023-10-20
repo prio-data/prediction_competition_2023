@@ -1,18 +1,41 @@
 from pathlib import Path
-import pyarrow.parquet as pq
 import os
-import yaml
 import pandas as pd
 import argparse
 
-def team_and_identifier(submission):
-    with open(submission/"submission_details.yml") as f:
-        submission_details = yaml.safe_load(f)
-    identifier = submission_details["even_shorter_identifier"]
-    team = submission_details["team"]
-    return team, identifier
+from utilities import list_submissions, get_predictions, views_month_id_to_year, views_month_id_to_month, TargetType, get_submission_details
 
-def get_eval(submission, target, groupby: list[str] = None):
+
+def get_eval(submission: str|os.PathLike, target: TargetType, groupby: str|list[str] = None) -> pd.DataFrame:
+    """Convenience function to read and aggregate evaluation metrics from a submission.
+
+    Parameters
+    ----------
+    submission : str | os.PathLike
+        Path to a folder structured like a submission_template
+    target : TargetType
+        A string, either "pgm" for PRIO-GRID-months, or "cm" for country-months.
+    groupby : str | list[str], optional
+        A dimension to aggregate results across. Some options (all except None and "pooled" can be combined in a list):
+        None: no aggregation
+        "pooled": complete aggregation
+        "year": aggregate by calendar year
+        "month": aggregate by calendar month
+        "month_id": aggregate by month_id (1 is January 1980)
+        "country_id": aggregate by country (currently only works for target == "cm")
+        "priogrid_gid": aggregate by PRIO-GRID id.
+
+    Returns
+    -------
+    pandas.DataFrame
+
+    Raises
+    ------
+    ValueError
+        Target must be "cm" or "pgm".
+    """
+
+    submission = Path(submission)
     df = get_predictions(submission / "eval", target = target)
 
     if target == "cm":
@@ -23,132 +46,107 @@ def get_eval(submission, target, groupby: list[str] = None):
         raise ValueError(f'Target must be either "cm" or "pgm".')
     
     df = df.pivot_table(values=["value"], index = ["month_id", unit], columns = "metric")
+    df.columns = df.columns.get_level_values(1).to_list()
+
+    if df.index.names != [None]:
+        df = df.reset_index()
+
+    sdetails = get_submission_details(submission)
+    df["team"] = sdetails["team"]
+    df["model"] = sdetails["even_shorter_identifier"]
+
+    if groupby == None:    
+        return df
+    if groupby == "pooled":
+        groupby = []
+    if isinstance(groupby, str):
+        groupby = [groupby]
+    groupby.extend(["team", "model"])
 
     if "year" in groupby:
-        df = df.reset_index()
         df["year"] = views_month_id_to_year(df["month_id"])
+
+    if "month" in groupby:
+        df["month"] = views_month_id_to_month(df["month_id"])
+
+    
+    if "month_id" not in groupby:
         df = df.drop(columns="month_id")
-        df = df.set_index([unit, "year"])
-        
-    if groupby == None:
-        pass
-    else:
-        df = df.groupby(level=groupby).mean().reset_index()
+    if unit not in groupby:
+        df = df.drop(columns=unit)
     
-    team, model = team_and_identifier(submission)
-    
-    df["Team"] = team
-    df["Model"] = model
+    df = df.set_index(groupby)
+    df = df.groupby(level=groupby).mean().reset_index()  
+
     return df
 
-def setup_eval_df(eval_file: str|os.PathLike, team: str, identifier: str, target: str, window: str) -> pd.DataFrame:
-    df: pd.DataFrame = pq.read_table(eval_file).to_pandas()
-    df["window"] = window
-    df["target"] = target
-    df["team"] = team
-    df["identifier"] = identifier
-    unit: str = df.index.name
-    df.reset_index(inplace = True)
-    df.set_index(["team", "identifier", "target", unit, "window"], inplace = True)
-    return df
+def evaluation_table(submissions: str|os.PathLike, target: TargetType, groupby: str, save_to: str|os.PathLike = None, across_submissions: bool = False):
+    """Convenience function to make aggregated result tables of the evaulation metrics and store them to LaTeX, HTML, and excel format.
 
-def concat_eval(submission: str|os.PathLike, target: str, aggregation: str, metric: str) -> pd.DataFrame:
-    eval_data: list[str|os.PathLike] = list(submission.glob(f'**/{metric}_{aggregation}.parquet'))
-    eval_data: list[str|os.PathLike] = [f for f in eval_data if f.parts[-4] == target]
+    Parameters
+    ----------
+    submissions : str | os.PathLike
+        Path to a folder only containing folders structured like a submission_template
+    target : TargetType
+        A string, either "pgm" for PRIO-GRID-months, or "cm" for country-months.
+    groupby : str | list[str], optional
+        A dimension to aggregate results across. Some options (all except "pooled" can be combined in a list):
+        "pooled": complete aggregation
+        "year": aggregate by calendar year
+        "month": aggregate by calendar month
+        "month_id": aggregate by month_id (1 is January 1980)
+        "country_id": aggregate by country (currently only works for target == "cm")
+        "priogrid_gid": aggregate by PRIO-GRID id.
+    save_to : str | os.PathLike, optional
+        Folder to store evaulation tables in LaTeX, HTML, and excel format.
+    across_submissions : bool
+        Aggregate across submissions
 
-    with open(submission/"submission_details.yml") as f:
-        submission_details = yaml.safe_load(f)
-    identifier = submission_details["even_shorter_identifier"]
-    team = submission_details["team"]
-    
-    if len(eval_data) == 0:
-        return print(f'No files to collect in submission {submission} for target {target} and aggregation {aggregation}.')
-    
-    dfs: list = []
-    for f in eval_data:
-        window = f.parts[-3]
-        target2 = f.parts[-4]
-        assert target == target2
-
-        sdf: pd.DataFrame = setup_eval_df(f, team, identifier, target, window)
         
-        dfs.append(sdf)
-    
-    return pd.concat(dfs)
+    Returns
+    -------
+    pandas.DataFrame
+        If save_to is None, or if groupby is a list or None, the function returns the dataframe. 
+        It can be useful to collate all evaluation data into one dataframe, but not to write everything out to a table.
 
-def merge_eval(submission: str|os.PathLike, target, aggregation) -> None:
-    metrics = ["crps", "ign", "mis"]
+    """
 
-    dfs: list = []
-    
-    for metric in metrics:
-        res = concat_eval(submission, target, aggregation, metric)
-        if isinstance(res, pd.DataFrame):
-            dfs.append(res)
-    try:
-        df = pd.concat(dfs, axis = 1) # Columnar concatenation
-        fpath: str|os.PathLike = submission / f'eval_{target}_{aggregation}.parquet'
-        df.to_parquet(fpath)
-    except ValueError:
-        pass
+    submissions = list_submissions(Path(submissions))
 
-def collect_evaluations(submissions_path: str|os.PathLike) -> None:
-    submission_path = Path(submissions_path)
-    submissions = [submission for submission in submission_path.iterdir() if submission.is_dir() and not submission.stem == "__MACOSX"]
+    eval_data = [get_eval(submission, target, groupby) for submission in submissions]
+    df = pd.concat(eval_data)
 
-    targets = ["cm", "pgm"]
-    aggregations = ["per_unit", "per_month"]
-
-    for submission in submissions:        
-        for target in targets:
-            for aggregation in aggregations:
-                merge_eval(submission, target, aggregation)
-
-    for target in targets:
-        for aggregation in aggregations:
-            eval_data = list(submission_path.glob(f'*/eval_{target}_{aggregation}.parquet'))
-            dfs = [pq.read_table(f).to_pandas() for f in eval_data]
-            df = pd.concat(dfs)
-            fpath = submission_path / f'eval_{target}_{aggregation}.parquet'
-            df.to_parquet(fpath)
-
-def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike = "", by_window: bool = False):
-
-    target = eval_file.stem.split("_")[1]
-
-    df: pd.DataFrame = pq.read_table(eval_file).to_pandas()
-    df = df.reset_index()
-    agg_level = df.columns[3]
-    df = df.drop(columns = ["target", agg_level])
-
-    if by_window:
-        df["window"] = df["window"].apply(lambda x: x.split("_")[-1]).astype(int)
-        df = df.groupby(["window", "team", "identifier"]).mean().reset_index()
-        df = df.rename(columns = {"window": "Window", "team": "Team", "identifier": "Model", "crps": "CRPS", "ign": "IGN", "mis": "MIS"})
-        df = df.pivot_table(values=["CRPS", "IGN", "MIS"], index = ["Team", "Model"], aggfunc = {"CRPS": "mean", "IGN": "mean", "MIS": "mean"}, columns = "Window")
-        df  = df.sort_values(("CRPS", 2018))
-    else:
-        df = df.set_index(["team", "identifier"])
-        test_windows = df["window"].groupby(level=[0,1]).nunique()
-        df = df.drop(index=test_windows[test_windows !=max(test_windows)].index, 
-                columns = "window")
-        df = df.groupby(level=[0,1]).mean()
-        df = df.sort_values("crps")
-        df.index = df.index.rename(["Team", "Model"])
-        df.columns = df.columns.str.upper()
-
-    if save_to == "":
+    if groupby == None:    
+        # Edge case if user specify a list of dimensions to groupby or no aggregation. Probably not something to plot tables for.
         return df
+    if groupby == "pooled":
+        groupby = []
+    if isinstance(groupby, str):
+        groupby = [groupby]
+    
+    if not across_submissions:
+        groupby.extend(["team", "model"])
+    
+    if "year" in groupby:
+        min_year = df["year"].min()
+        df = df.pivot_table(values=["crps", "ign", "mis"], index = [g for g in groupby if g != "year"], aggfunc = {"crps": "mean", "ign": "mean", "mis": "mean"}, columns = "year")
+        df = df.sort_values(("crps", min_year))
     else:
-        if by_window:
-            file_stem = f"results_by_window_{target}"
+        if isinstance(df, pd.Series):
+            # No need to sort single events.
+            pass
         else:
-            file_stem = f"global_results_{target}"
+            df = df.sort_values("crps")
+            
+    if save_to == None:
+        return df 
+    else:
+        file_stem = f"metrics_{target}_by={groupby}"
 
         css_alt_rows = 'background-color: #e6e6e6; color: black;'
         highlight_props = "background-color: #00718f; color: #fafafa;"
         df = df.style \
-                .format(decimal=',', thousands='.', precision=3) \
+                .format(decimal='.', thousands=' ', precision=3) \
                 .highlight_min(axis=0, props=highlight_props) \
                 .set_table_styles([
                     {'selector': 'tr:nth-child(even)', 'props': css_alt_rows}
@@ -157,19 +155,18 @@ def get_global_performance(eval_file: str|os.PathLike, save_to: str|os.PathLike 
         df.to_html(save_to / f'{file_stem}.html')
         df.to_excel(save_to / f'{file_stem}.xlsx')
 
-        
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Method for collating evaluations from all submissions in the ViEWS Prediction Challenge",
                                      epilog = "Example usage: python collect_performance.py -s ./submissions")
     parser.add_argument('-s', metavar='submissions', type=str, help='path to folder with submissions complying with submission_template')
-    parser.add_argument('-t', metavar='tables_folder', type=str, help='path to folder to save result tables in latex', default=None)
+    parser.add_argument('-o', metavar='output_folder', type=str, help='path to folder to save result tables', default=None)
+    parser.add_argument('-tt', metavar='target_type', type=str, help='target "pgm" or "cm"', default=None)
+    parser.add_argument('-g', metavar='groupby', nargs = "+", type=str, help='string or list of strings of dimensions to aggregate over', default=None)
+    
     args = parser.parse_args()
 
-    collect_evaluations(args.s)
-
-    if args.t is not None and Path(args.t).exists():
-        eval_files = list(Path(args.s).glob("eval*per_month.parquet"))
-        [get_global_performance(f, save_to = Path(args.t)) for f in eval_files]
-        [get_global_performance(f, save_to = Path(args.t), by_window=True) for f in eval_files]
+    evaluation_table(submissions = args.s, 
+                     target = args.tt, 
+                     groupby = args.g, 
+                     save_to = args.o)
