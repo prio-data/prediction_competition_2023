@@ -21,8 +21,8 @@ def evaluate_forecast(forecast: pd.DataFrame,
                       target: TargetType,
                       expected_samples: int,
                       save_to: str|os.PathLike,
-                      draw_column_name: str ="draw", 
-                      data_column_name: str = "outcome",
+                      draw_column: str ="draw", 
+                      data_column: str = "outcome",
                       bins: list[float] = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]) -> None:
 
     if target == "pgm":
@@ -33,7 +33,7 @@ def evaluate_forecast(forecast: pd.DataFrame,
         raise ValueError(f'Target {target} must be either "pgm" or "cm".')
 
     # Cast to xarray
-    observed, predictions = structure_data(actuals, forecast, draw_column_name=draw_column_name, data_column_name = data_column_name)
+    observed, predictions = structure_data(actuals, forecast, draw_column_name=draw_column, data_column_name = data_column)
 
     if bool((predictions["outcome"] > 10e9).any()):
         logging.warning(f'Found predictions larger than earth population. These are censored at 10 billion.')
@@ -82,6 +82,60 @@ def match_forecast_with_actuals(submission, actuals_folder, target: TargetType, 
 
     return actuals, predictions
 
+def evaluate_all_submissions(submissions: str|os.PathLike, 
+                             acutals: str|os.PathLike, 
+                             targets: list[TargetType], 
+                             windows: list[str], 
+                             expected: int, 
+                             bins: list[float],
+                             sample_column: str = "draw", 
+                             data_column: str = "outcome") -> None:
+    """Loops over all submissions in the submissions folder, match them with the correct test dataset, and estimates evaluation metrics. 
+    Stores evaluation data as .parquet files in {submissions}/{submission_name}/eval/{target}/window={window}/.
+
+    Parameters
+    ----------
+    submissions : str | os.PathLike
+        Path to a folder only containing folders structured like a submission_template
+    acutals : str | os.PathLike
+        Path to actuals folder structured like {actuals}/{target}/window={window}/data.parquet
+    targets : list[TargetType]
+        A list of strings, either ["pgm"] for PRIO-GRID-months, or ["cm"] for country-months, or both.
+    windows : list[str]
+        A list of strings indicating the window of the test dataset. The string should match windows in data in the actuals folder.
+    expected : int
+        The expected numbers of samples. Due to how Ignorance Score is defined, all IGN metric comparisons must be across models with equal number of samples.
+    bins : list[float]
+        The binning scheme used in the Ignorance Score.
+    sample_column : str
+        The name of the sample column. We assume samples are drawn independently from the model. Default = "draw"
+    data_column : str
+        The name of the data column. Default = "outcome"
+    """
+    
+    submissions = Path(submissions)
+    submissions = list_submissions(submissions)
+
+    acutals = Path(acutals)
+
+    for submission in submissions:
+        try:
+            logging.info(f'Evaluating {submission.name}')
+            for target in targets:
+                for window in windows:
+                    if any((submission / target).glob("**/*.parquet")): # test if there are prediction files in the target
+                        observed_df, pred_df = match_forecast_with_actuals(submission, acutals, target, window)
+                        save_to = submission / "eval" / f'{target}' / f'window={window}'
+                        evaluate_forecast(forecast = pred_df, 
+                                        actuals = observed_df, 
+                                        target = target,
+                                        expected_samples = expected,
+                                        draw_column_name=sample_column,
+                                        data_column_name=data_column,
+                                        bins = bins,
+                                        save_to = save_to)
+        except Exception as e:
+            logging.error(f'{str(e)}')
 
 def main():
     parser = argparse.ArgumentParser(description="Method for evaluation of submissions to the ViEWS Prediction Challenge",
@@ -91,42 +145,23 @@ def main():
     parser.add_argument('-t', metavar='targets', nargs = "+", type=str, help='pgm or cm or both', default = ["pgm", "cm"])
     parser.add_argument('-w', metavar='windows', nargs = "+", type=str, help='windows to evaluate', default = ["Y2018", "Y2019", "Y2020", "Y2021"])
     parser.add_argument('-e', metavar='expected', type=int, help='expected samples', default = 1000)
-    parser.add_argument('-sc', metavar='sample-column-name', type=str, help='(Optional) name of column for the unique samples', default = "draw")
-    parser.add_argument('-dc', metavar='data-column-name', type=str, help='(Optional) name of column with data, must be same in both observed and predictions data', default = "outcome")
-    parser.add_argument('-ib', metavar = 'ign-bins', nargs = "+", type = float, help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.', default = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5])    
+    parser.add_argument('-sc', metavar='sample_column', type=str, help='(Optional) name of column for the unique samples', default = "draw")
+    parser.add_argument('-dc', metavar='data_column', type=str, help='(Optional) name of column with data, must be same in both observed and predictions data', default = "outcome")
+    parser.add_argument('-ib', metavar = 'bins', nargs = "+", type = float, help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.', default = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5])    
 
     args = parser.parse_args()
 
 
-    submission_path = Path(args.s)
-    actuals_folder = Path(args.a)
-    expected_samples = args.e
+    submissions = Path(args.s)
+    acutals = Path(args.a)
+    expected = args.e
     targets = args.t
     windows = args.w
-    sample_column_name = args.sc
-    data_column_name = args.dc
+    sample_column = args.sc
+    data_column = args.dc
     bins = args.ib
 
-    submissions = list_submissions(submission_path)
-
-    for submission in submissions:
-        try:
-            logging.info(f'Evaluating {submission.name}')
-            for target in targets:
-                for window in windows:
-                    if any((submission / target).glob("**/*.parquet")): # test if there are prediction files in the target
-                        actuals, predictions = match_forecast_with_actuals(submission, actuals_folder, target, window)
-                        save_to = submission / "eval" / f'{target}' / f'window={window}'
-                        evaluate_forecast(forecast = predictions, 
-                                        actuals = actuals, 
-                                        target = target,
-                                        expected_samples = expected_samples,
-                                        draw_column_name=sample_column_name,
-                                        data_column_name=data_column_name,
-                                        bins = bins,
-                                        save_to = save_to)
-        except Exception as e:
-            logging.error(f'{str(e)}')
+    evaluate_all_submissions(submissions, acutals, targets, windows, expected, sample_column, data_column, bins)
 
 
 if __name__ == "__main__":
