@@ -43,20 +43,20 @@ def filter_units(feature_folder,target,year,unit,month_lag):
     pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
     return df,pool
 
-def generate_historical_poisson(data, value_column_name, num_samples=1000):
+def last_observed_poisson_benchmark(data, value_column_name, num_samples=1000) -> list:
     return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
 
-def generate_bootstrap(data, value_column_name, num_samples=1000):
+def historical_bootstrap_benchmark(data, value_column_name, num_samples=1000) -> list:
     return np.random.choice(data[value_column_name], size=(data.shape[0], num_samples), replace=True).tolist()
 
 def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
     unit = select_unit(target)
     df,pool = filter_units(feature_folder,target,year,unit,month_lag)
     if benchmark_name == "hist":
-        df['outcome']=generate_historical_poisson(pool, value_column_name = 'ged_sb', num_samples=1000)
+        df['outcome']=last_observed_poisson_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)
 
     elif benchmark_name == "boot":
-        df['outcome']=generate_bootstrap(pool, value_column_name = 'ged_sb', num_samples=1000)        
+        df['outcome']=historical_bootstrap_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)        
     else:
         raise ValueError('Benchmark must be "boot" or "hist"')
     df = df.explode('outcome').astype('int32')
