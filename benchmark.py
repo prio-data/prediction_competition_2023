@@ -1,4 +1,4 @@
-# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot
+# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot --month_lag 3
 
 import argparse
 import pandas as pd
@@ -12,9 +12,9 @@ def main():
     parser.add_argument("--feature_folder", type=str, help="Path to the feature folder")
     parser.add_argument("--target", type=str, choices=["pgm", "cm"], help="Target type (pgm or cm)")
     parser.add_argument("--year", type=int, help="Year")
-    #new argument
     parser.add_argument("--benchmark_name",type=str,help="boot - Bootstrap, hist - last historical")
     parser.add_argument("--month_lag",type=int,help="specify the month lag for prediction" )
+    parser.add_argument("--save_folder_path",type=str,help="specify a folder path name to save parquet files")
     args = parser.parse_args()
     feature_folder = Path(args.feature_folder)
     target = args.target
@@ -261,4 +261,4 @@ def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
 if __name__ == "__main__":
     main()
 
-# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot
+# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot --month_lag 3
