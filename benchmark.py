@@ -15,6 +15,7 @@ def main():
     parser.add_argument("--benchmark_name",type=str,help="boot - Bootstrap, hist - last historical")
     parser.add_argument("--month_lag",type=int,help="specify the month lag for prediction" )
     parser.add_argument("--save_folder_path",type=str,help="specify a folder path name to save parquet files")
+    #parser.add_argument("--window",type=list,help="specify years in window")
     args = parser.parse_args()
     feature_folder = Path(args.feature_folder)
     target = args.target
