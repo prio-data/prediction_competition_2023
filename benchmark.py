@@ -251,7 +251,7 @@ def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
         df['outcome']=last_observed_poisson_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)
 
     else:
-        raise ValueError('Benchmark must be "boot" or "hist"')
+        raise ValueError('Benchmark must be "boot" or "hist" or "last"')
     df = df.explode('outcome').astype('int32')
     df['draw'] = df.groupby(['month_id', unit]).cumcount()
     df.set_index(['month_id',unit,'draw'],inplace=True)
