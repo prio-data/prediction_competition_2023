@@ -108,8 +108,41 @@ def filter_units(feature_folder,target,year,unit,month_lag):
     filter = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12+month_lag))
     pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
     return df,pool
+def filter_units_last_observed(feature_folder,target,year,unit,month_lag):
+    """
+    Filter and retrieve data for specified units based on last observed information.
 
-def historical_poisson_benchmark(data, value_column_name, num_samples=1000) -> list:
+    This function filters and retrieves data for specified units from a Parquet dataset based on the following criteria:
+    1. The data should belong to a specific year.
+    2. The data should have a month_id less than or equal to a specified month_lag before the minimum month_id in the dataset.
+
+    Parameters:
+    - feature_folder (Path): The folder containing the Parquet dataset.
+    - target (str): The name of the Parquet dataset file.
+    - year (int): The target year for filtering the data.
+    - unit (str): The name of the unit column in the dataset.
+    - month_lag (int): The number of months to lag behind the minimum month_id for data retrieval.
+
+    Returns:
+    - df (DataFrame): The filtered data for the specified units along with the "month_id" column.
+    - pool (DataFrame): Additional data from the "ged_sb" column based on the specified criteria.
+
+    Example:
+    df, pool = filter_units_last_observed(Path("data_folder"), "my_data.parquet", 2023, "unit_id", 3)
+    """
+    filter = pac.field("year") == year
+    df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
+    print(df)
+    filter = (pac.field("month_id") == df.month_id.min() - month_lag) 
+
+    pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
+    copies = [pool.copy() for _ in range(12)]
+    # Concatenate the copies row-wise
+    pool = pd.concat(copies, axis=0, ignore_index=True)
+    print(pool)
+    return df,pool
+
+def historical_poisson_benchmark(data, value_column_name, num_samples=1000):
     """
     Generate Poisson-distributed samples based on last observed values.
 
@@ -140,8 +173,31 @@ def historical_poisson_benchmark(data, value_column_name, num_samples=1000) -> l
     """
     return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
 
-def historical_bootstrap_benchmark(data, value_column_name, num_samples=1000) -> list:
+def historical_bootstrap_benchmark(data, value_column_name, num_samples=1000):
     return np.random.choice(data[value_column_name], size=(data.shape[0], num_samples), replace=True).tolist()
+
+def last_observed_poisson_benchmark(data, value_column_name, num_samples=1000):
+    """
+    Generate Poisson-distributed samples based on last observed values.
+
+    This function generates a list of Poisson-distributed samples for each value
+    in the specified column of the input data. The samples are generated based on
+    the last observed value in the column.
+
+    Parameters:
+    - data (DataFrame): A DataFrame containing the data from which to generate samples.
+    - value_column_name (str): The name of the column containing the last observed values.
+    - num_samples (int, optional): The number of Poisson-distributed samples to generate for each value.
+      Default is 1000.
+
+    Returns:
+    - samples (list of arrays): A list of arrays where each array contains Poisson-distributed samples
+      for a corresponding value in the input data.
+
+    Example:
+    samples = last_observed_poisson_benchmark(my_data, 'last_observed_count', num_samples=100)
+    """
+    return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
 
 def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
     """
@@ -184,10 +240,16 @@ def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
     unit = select_unit(target)
     df,pool = filter_units(feature_folder,target,year,unit,month_lag)
     if benchmark_name == "hist":
+        df,pool = filter_units(feature_folder,target,year,unit,month_lag)
         df['outcome']=historical_poisson_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)
 
     elif benchmark_name == "boot":
-        df['outcome']=historical_bootstrap_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)        
+        df,pool = filter_units(feature_folder,target,year,unit,month_lag)
+        df['outcome']=historical_bootstrap_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)  
+    elif benchmark_name == "last":
+        df,pool = filter_units_last_observed(feature_folder,target,year,unit,month_lag)
+        df['outcome']=last_observed_poisson_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)
+
     else:
         raise ValueError('Benchmark must be "boot" or "hist"')
     df = df.explode('outcome').astype('int32')
