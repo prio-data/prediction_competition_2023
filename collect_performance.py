@@ -222,6 +222,7 @@ def evaluation_table(
 
         css_alt_rows = "background-color: #e6e6e6; color: black;"
         highlight_props = "background-color: #00718f; color: #fafafa;"
+
         df = (
             df.style.format(decimal=".", thousands=" ", precision=3)
             .highlight_min(axis=0, props=highlight_props)
@@ -232,7 +233,6 @@ def evaluation_table(
         df.to_latex(save_to / f"{file_stem}.tex")
         df.to_html(save_to / f"{file_stem}.html")
         df.to_excel(save_to / f"{file_stem}.xlsx")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
