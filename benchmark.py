@@ -1,265 +1,114 @@
-# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot --month_lag 3
-
 import argparse
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
 from pathlib import Path
 import pyarrow.compute as pac
+import yaml
+
 
 def main():
     parser = argparse.ArgumentParser(description="Global Bootstrap Benchmark Script")
     parser.add_argument("--feature_folder", type=str, help="Path to the feature folder")
     parser.add_argument("--target", type=str, choices=["pgm", "cm"], help="Target type (pgm or cm)")
-    parser.add_argument("--year", type=int, help="Year")
-    parser.add_argument("--benchmark_name",type=str,help="boot - Bootstrap, hist - last historical")
-    parser.add_argument("--month_lag",type=int,help="specify the month lag for prediction" )
-    parser.add_argument("--save_folder_path",type=str,help="specify a folder path name to save parquet files")
-    #parser.add_argument("--window",type=list,help="specify years in window")
+    parser.add_argument("--years", type=int, nargs='+', help="List of years")
+    parser.add_argument("--benchmark_name", type=str, help="boot - Bootstrap, last - last historical")
+    parser.add_argument("--month_lag", type=int, help="Specify the month lag for prediction")
+    parser.add_argument("--save_folder_path", type=str, help="Specify a folder path name to save parquet files")
+    
     args = parser.parse_args()
+    
     feature_folder = Path(args.feature_folder)
     target = args.target
-    year = args.year
+    years = args.years
     benchmark_name = args.benchmark_name
     month_lag = args.month_lag
-    result = global_benchmark(benchmark_name, feature_folder, target, year,month_lag)
-    result.to_parquet(f'{feature_folder}/{benchmark_name}_{target}_{year}.parquet')
-
+    save_folder_path = args.save_folder_path
+    
+    for year in years:
+        if benchmark_name == 'boot':
+            result = global_bootstrap(feature_folder, target, year, month_lag, num_samples=1000)
+        elif benchmark_name == 'last':
+            result = last_observed_poisson(feature_folder, target, year, month_lag, num_samples=1000)
+        save_results(result, benchmark_name, target, year, save_folder_path)
+    
     # Do something with the result, e.g., print or save it.
     print(result)
     
-def select_unit(target):
-    """
-    Selects and returns the appropriate unit identifier based on the provided target.
+def save_results(result, benchmark_name, target, year, save_folder_path):
+    # Create a folder with the benchmark name
+    benchmark_folder = Path(save_folder_path) / benchmark_name
+    benchmark_folder.mkdir(parents=True, exist_ok=True)
+    
+    # Create a folder for the year
+    year_folder = benchmark_folder / f'test_window_{year}'
+    year_folder.mkdir(parents=True, exist_ok=True)
+    
+    # Define the file name
+    file_name = f'bm_{benchmark_name}_{year}.parquet'
+    
+    # Save the result to a Parquet file
+    result.to_parquet(year_folder / file_name)
+    
+     # Create the YAML file with submission details
+    submission_details = {
+        "team": "benchmark",
+        "short_title": f"{benchmark_name} {target} {year}",
+        "even_shorter_identifier": f"{benchmark_name}_{target}_{year}",
+        "authors": [
+            {
+                "name": "Your Name",
+                "affil": "Your Affiliation",
+                "contact": "Your Contact Info"
+            }
+        ]
+    }
+    
+    with open(benchmark_folder / "submission_details.yml", 'w') as yaml_file:
+        yaml.dump(submission_details, yaml_file)
 
-    Args:
-        target (str): A string representing the target unit. Should be one of the following:
-            - "pgm" for the Political Geographic Model.
-            - "cm" for the Country Model.
-
-    Returns:
-        str: The unit identifier based on the target.
-        
-    Raises:
-        ValueError: If the target is not "pgm" or "cm".
-
-    Example:
-        To select the unit for the Political Geographic Model:
-        ```
-        unit = select_unit("pgm")
-        ```
-
-        To select the unit for the Country Model:
-        ```
-        unit = select_unit("cm")
-        ```
-
-    Note:
-        This function is designed to handle specific targets, and any other values for the target will result in a ValueError.
-
-    """
+    
+def global_bootstrap(feature_folder, target, year, month_lag=3, num_samples=1000):
     if target == "pgm":
-        return "priogrid_gid"
+        unit = "priogrid_gid"
     elif target == "cm":
-        return "country_id"
+        unit = "country_id"
     else:
-        raise ValueError('Target must be "pgm" or "cm".')
+        raise ValueError('Target must be "pgm" or "cm.')
     
-def filter_units(feature_folder,target,year,unit,month_lag):
-    """
-    Filter and retrieve data from Parquet datasets based on specified criteria.
-
-    This function filters Parquet datasets based on the provided `year`, `unit`, and `month_lag` values. It reads data from the specified dataset and returns DataFrames containing the filtered data.
-
-    Args:
-        feature_folder (pathlib.Path): The folder containing Parquet datasets.
-        target (str): The name of the Parquet dataset file (e.g., 'ged_data.parquet').
-        year (int): The target year for filtering data.
-        unit (str): The unit to filter on, such as 'country_id' or 'priogrid_gid'.
-        month_lag (int): The number of months to lag behind the minimum 'month_id' for filtering.
-
-    Returns:
-        Tuple[pandas.DataFrame, pandas.DataFrame]: A tuple containing two DataFrames:
-        - The first DataFrame contains the filtered data based on the specified year and unit.
-        - The second DataFrame contains the filtered data based on the specified month_lag.
-
-    Example:
-        To filter data for a specific year, unit, and month lag:
-        ```
-        feature_folder = pathlib.Path('/path/to/parquet/datasets')
-        target = 'ged_data.parquet'
-        year = 2023
-        unit = 'country_id'
-        month_lag = 2
-
-        df, pool = filter_units(feature_folder, target, year, unit, month_lag)
-        ```
-
-    Note:
-        - `feature_folder` should be a pathlib.Path object pointing to the folder where the Parquet datasets are located.
-        - `target` is the name of the Parquet dataset file within the specified folder.
-        - `year` is used to filter data for a specific year.
-        - `unit` specifies the unit to filter on, such as 'country_id' or 'priogrid_gid.'
-        - `month_lag` determines the number of months to lag behind the minimum 'month_id' for filtering data.
-
-    """
-    filter = pac.field("year") == year
-    df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
+    filter_year = pac.field("year") == year
+    df = pq.ParquetDataset(feature_folder / target, filters=filter_year).read(columns=[unit, "month_id"]).to_pandas()
     
-    filter = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12+month_lag))
-    pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
-    return df,pool
-def filter_units_last_observed(feature_folder,target,year,unit,month_lag):
-    """
-    Filter and retrieve data for specified units based on last observed information.
-
-    This function filters and retrieves data for specified units from a Parquet dataset based on the following criteria:
-    1. The data should belong to a specific year.
-    2. The data should have a month_id less than or equal to a specified month_lag before the minimum month_id in the dataset.
-
-    Parameters:
-    - feature_folder (Path): The folder containing the Parquet dataset.
-    - target (str): The name of the Parquet dataset file.
-    - year (int): The target year for filtering the data.
-    - unit (str): The name of the unit column in the dataset.
-    - month_lag (int): The number of months to lag behind the minimum month_id for data retrieval.
-
-    Returns:
-    - df (DataFrame): The filtered data for the specified units along with the "month_id" column.
-    - pool (DataFrame): Additional data from the "ged_sb" column based on the specified criteria.
-
-    Example:
-    df, pool = filter_units_last_observed(Path("data_folder"), "my_data.parquet", 2023, "unit_id", 3)
-    """
-    filter = pac.field("year") == year
-    df = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=[unit, "month_id"]).to_pandas()
-    print(df)
-    filter = (pac.field("month_id") == df.month_id.min() - month_lag) 
-
-    pool = pq.ParquetDataset(feature_folder / target, filters=filter).read(columns=["ged_sb"]).to_pandas()
-    copies = [pool.copy() for _ in range(12)]
-    # Concatenate the copies row-wise
-    pool = pd.concat(copies, axis=0, ignore_index=True)
-    print(pool)
-    return df,pool
-
-def historical_poisson_benchmark(data, value_column_name, num_samples=1000):
-    """
-    Generate Poisson-distributed samples based on last observed values.
-
-    This function generates Poisson-distributed samples for each value in the specified data column, using the last observed value as the Poisson lambda parameter. The generated samples are returned as a list.
-
-    Args:
-        data (pandas.DataFrame): The DataFrame containing the data.
-        value_column_name (str): The name of the column in the DataFrame from which to extract values for generating Poisson samples.
-        num_samples (int, optional): The number of Poisson-distributed samples to generate for each value. Default is 1000.
-
-    Returns:
-        list: A list of lists, where each inner list contains Poisson-distributed samples for a value in the specified column.
-
-    Example:
-        To generate Poisson samples based on the 'count' column in a DataFrame:
-        ```
-        data = pd.DataFrame({'value_column_name': [5, 10, 15, 20]})
-        num_samples = 1000
-
-        samples = last_observed_poisson_benchmark(data, 'value_column_name', num_samples)
-        ```
-
-    Note:
-        - `data` should be a pandas DataFrame containing the data.
-        - `value_column_name` is the name of the column from which values are extracted for generating samples.
-        - `num_samples` specifies the number of Poisson-distributed samples to generate for each value. The default is 1000.
-
-    """
-    return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
-
-def historical_bootstrap_benchmark(data, value_column_name, num_samples=1000):
-    return np.random.choice(data[value_column_name], size=(data.shape[0], num_samples), replace=True).tolist()
-
-def last_observed_poisson_benchmark(data, value_column_name, num_samples=1000):
-    """
-    Generate Poisson-distributed samples based on last observed values.
-
-    This function generates a list of Poisson-distributed samples for each value
-    in the specified column of the input data. The samples are generated based on
-    the last observed value in the column.
-
-    Parameters:
-    - data (DataFrame): A DataFrame containing the data from which to generate samples.
-    - value_column_name (str): The name of the column containing the last observed values.
-    - num_samples (int, optional): The number of Poisson-distributed samples to generate for each value.
-      Default is 1000.
-
-    Returns:
-    - samples (list of arrays): A list of arrays where each array contains Poisson-distributed samples
-      for a corresponding value in the input data.
-
-    Example:
-    samples = last_observed_poisson_benchmark(my_data, 'last_observed_count', num_samples=100)
-    """
-    return [np.random.poisson(value, num_samples) for value in data[value_column_name]]
-
-def global_benchmark(benchmark_name, feature_folder,  target,year, month_lag):
-    """
-    Perform global benchmarking based on specified parameters.
-
-    This function performs global benchmarking by selecting the benchmarking method, filtering data, generating outcomes, and organizing the results.
-
-    Args:
-        benchmark_name (str): The benchmarking method to use. Should be one of the following:
-            - "hist" for historical benchmarking.
-            - "boot" for bootstrap benchmarking.
-        feature_folder (pathlib.Path): The folder containing Parquet datasets.
-        target (str): The name of the Parquet dataset file (e.g., 'ged_data.parquet').
-        year (int): The target year for filtering data.
-        month_lag (int): The number of months to lag behind the minimum 'month_id' for filtering.
-
-    Returns:
-        pandas.DataFrame: A DataFrame containing benchmarked outcomes and relevant data.
-
-    Example:
-        To perform historical benchmarking with specified parameters:
-        ```
-        benchmark_name = "hist"
-        feature_folder = pathlib.Path('/path/to/parquet/datasets')
-        target = 'ged_data.parquet'
-        year = 2023
-        month_lag = 2
-
-        result_df = global_benchmark(benchmark_name, feature_folder, target, year, month_lag)
-        ```
-
-    Note:
-        - `benchmark_name` should be "hist" for historical benchmarking or "boot" for bootstrap benchmarking.
-        - `feature_folder` should be a pathlib.Path object pointing to the folder where the Parquet datasets are located.
-        - `target` is the name of the Parquet dataset file within the specified folder.
-        - `year` is used to filter data for a specific year.
-        - `month_lag` determines the number of months to lag behind the minimum 'month_id' for filtering data.
-
-    """
-    unit = select_unit(target)
-    df,pool = filter_units(feature_folder,target,year,unit,month_lag)
-    if benchmark_name == "hist":
-        df,pool = filter_units(feature_folder,target,year,unit,month_lag)
-        df['outcome']=historical_poisson_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)
-
-    elif benchmark_name == "boot":
-        df,pool = filter_units(feature_folder,target,year,unit,month_lag)
-        df['outcome']=historical_bootstrap_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)  
-    elif benchmark_name == "last":
-        df,pool = filter_units_last_observed(feature_folder,target,year,unit,month_lag)
-        df['outcome']=last_observed_poisson_benchmark(pool, value_column_name = 'ged_sb', num_samples=1000)
-
-    else:
-        raise ValueError('Benchmark must be "boot" or "hist" or "last"')
+    filter_year = (pac.field("month_id") <= df.month_id.min() - month_lag) & (pac.field("month_id") > df.month_id.min() - (12 + month_lag))
+    pool = pq.ParquetDataset(feature_folder / target, filters=filter_year).read(columns=["ged_sb"]).to_pandas()
+    df['outcome'] = np.random.choice(pool["ged_sb"], size=(pool.shape[0], num_samples), replace=True).tolist()
     df = df.explode('outcome').astype('int32')
     df['draw'] = df.groupby(['month_id', unit]).cumcount()
-    df.set_index(['month_id',unit,'draw'],inplace=True)
-    return df 
+    df.set_index(['month_id', unit, 'draw'], inplace=True)
+    return df
 
+def last_observed_poisson(feature_folder, target, year, month_lag=3, num_samples=1000):
+    if target == "pgm":
+        unit = "priogrid_gid"
+    elif target == "cm":
+        unit = "country_id"
+    else:
+        raise ValueError('Target must be "pgm" or "cm.')
+    
+    filter_year = pac.field("year") == year
+    df = pq.ParquetDataset(feature_folder / target, filters=filter_year).read(columns=[unit, "month_id"]).to_pandas()
+
+    filter_year = (pac.field("month_id") == df.month_id.min() - month_lag)
+    min_month = pq.ParquetDataset(feature_folder / target, filters=filter_year).read(columns=["ged_sb"]).to_pandas()
+    copies = [min_month.copy() for _ in range(12)]
+    
+    # Concatenate the copies row-wise
+    min_month = pd.concat(copies, axis=0, ignore_index=True)
+    df['outcome'] = [np.random.poisson(value, num_samples) for value in min_month["ged_sb"]]
+    df = df.explode('outcome').astype('int32')
+    df['draw'] = df.groupby(['month_id', unit]).cumcount()
+    df.set_index(['month_id', unit, 'draw'], inplace=True)
+    return df
 
 if __name__ == "__main__":
     main()
-
-# python3 your_script.py --feature_folder /path/to/features --target cm --year 2018 --benchmark_name boot --month_lag 3
