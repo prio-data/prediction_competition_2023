@@ -77,7 +77,7 @@ def save_results(result, benchmark_name, target, start_date, save_folder_path):
     os.makedirs(unit_folder, exist_ok=True)
 
     # Create a folder for the year within the unit folder
-    year_folder = os.path.join(unit_folder, f'test_window_{year}')
+    year_folder = os.path.join(unit_folder, f'window=Y{year}')
     os.makedirs(year_folder, exist_ok=True)
 
     # Define the file name
