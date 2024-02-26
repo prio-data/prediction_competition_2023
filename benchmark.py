@@ -31,7 +31,7 @@ def main():
     parser.add_argument("--feature_folder", type=str, help="Path to the feature folder")
     parser.add_argument("--target", type=str, choices=["pgm", "cm"], help="Target type (pgm or cm)")
     parser.add_argument("--years", type=int, nargs='+', help="List of years")
-    parser.add_argument("--benchmark_name", type=str, help="boot - Bootstrap, last - last historical")
+    parser.add_argument("--benchmark_name", type=str, help="boot - Bootstrap, last - last historical, conflictology - conflictology benchmarking")
     parser.add_argument("--month_lag", type=int, help="Specify the month lag for prediction")
     parser.add_argument("--save_folder_path", type=str, help="Specify a folder path name to save parquet files")
     
@@ -50,6 +50,8 @@ def main():
             result = global_bootstrap(feature_folder, target, start_date, month_lag, num_samples=1000)
         elif benchmark_name == 'last':
             result = last_observed_poisson(feature_folder, target, start_date, month_lag, num_samples=1000)
+        elif benchmark_name == 'conflictology':
+            result = conflictology(feature_folder, target, start_date, month_lag, num_samples=12)
         save_results(result, benchmark_name, target, start_date, save_folder_path)
     
     # Do something with the result, e.g., print or save it.
@@ -181,6 +183,49 @@ def last_observed_poisson(feature_folder, target, start_date, month_lag=3, num_s
         df["month_id"] = month_id
         df["outcome"] = df["ged_sb"].apply(lambda x: np.random.poisson(x, num_samples))
         df = df.drop(columns = "ged_sb")
+        df = df.explode("outcome").astype("int32")
+        df['draw'] = df.groupby(['month_id', unit]).cumcount()
+        df.set_index(['month_id', unit, 'draw'], inplace=True)
+        dfs.append(df)
+    # Concatenate the copies row-wise
+    return pd.concat(dfs)
+
+
+def conflictology(feature_folder, target, start_date, month_lag=3, num_samples=1000):
+    """
+    Perform conflictology benchmarking.
+
+    Args:
+        feature_folder (str): The path to the feature folder containing the data.
+        target (str): The target type, either 'cm' or 'pgm'.
+        start_date (datetime.date): The start date for the benchmark.
+        month_lag (int, optional): The month lag for prediction. Default is 3.
+        num_samples (int, optional): The number of conflictology samples to generate. Default is 1000.
+
+    Returns:
+        pandas.DataFrame: The benchmark results after conflictology benchmarking.
+    """
+    if target == "pgm":
+        unit = "priogrid_gid"
+    elif target == "cm":
+        unit = "country_id"
+    else:
+        raise ValueError('Target must be "pgm" or "cm.')
+
+    window_start_month = date_to_month_id(start_date)
+    last_observed_month_id = (pac.field("month_id") ==
+                              window_start_month - month_lag)
+    last_observed_data = pq.ParquetDataset(
+        feature_folder / target, filters=last_observed_month_id).read(columns=[unit, "ged_sb"]).to_pandas()
+
+    dfs = []
+    for month_id in range(window_start_month, window_start_month+12):
+        df = last_observed_data.copy()
+        df["month_id"] = month_id
+        print(df)
+        print(df.shape[0])
+        df['outcome'] = np.random.choice(df["ged_sb"], size=(df.shape[0], num_samples), replace=True).tolist()
+        df = df.drop(columns="ged_sb")
         df = df.explode("outcome").astype("int32")
         df['draw'] = df.groupby(['month_id', unit]).cumcount()
         df.set_index(['month_id', unit, 'draw'], inplace=True)
