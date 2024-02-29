@@ -34,7 +34,7 @@ def main():
     parser.add_argument("--benchmark_name", type=str, help="boot - Bootstrap, last - last historical, conflictology - conflictology benchmarking")
     parser.add_argument("--month_lag", type=int, help="Specify the month lag for prediction")
     parser.add_argument("--save_folder_path", type=str, help="Specify a folder path name to save parquet files")
-    
+    parser.add_argument("--num_samples", type=int, help="Specify the number of samples for the benchmark")
     args = parser.parse_args()
     
     feature_folder = Path(args.feature_folder)
@@ -43,15 +43,16 @@ def main():
     benchmark_name = args.benchmark_name
     month_lag = args.month_lag
     save_folder_path = args.save_folder_path
+    num_samples = args.num_samples
     
     for year in years:
         start_date = datetime.date(year = year, month = 1, day = 1)
         if benchmark_name == 'boot':
-            result = global_bootstrap(feature_folder, target, start_date, month_lag, num_samples=1000)
+            result = global_bootstrap(feature_folder, target, start_date, month_lag, num_samples)
         elif benchmark_name == 'last':
-            result = last_observed_poisson(feature_folder, target, start_date, month_lag, num_samples=1000)
+            result = last_observed_poisson(feature_folder, target, start_date, month_lag, num_samples)
         elif benchmark_name == 'conflictology':
-            result = conflictology(feature_folder, target, start_date, month_lag, num_samples=12)
+            result = conflictology(feature_folder, target, start_date, month_lag, num_samples)
         save_results(result, benchmark_name, target, start_date, save_folder_path)
     
     # Do something with the result, e.g., print or save it.
@@ -139,7 +140,7 @@ def global_bootstrap(feature_folder, target, start_date, month_lag=3, num_sample
     
     filter_last_year = (pac.field("month_id") <= window_start_month - month_lag) & (pac.field("month_id") > window_start_month - (12 + month_lag))
     pool = pq.ParquetDataset(feature_folder / target, filters=filter_last_year).read(columns=["ged_sb"]).to_pandas()
-    
+    print('Pool: ',pool)
     dfs = []
     for month_id in range(window_start_month, window_start_month+12):
         df = last_observed_data.copy()
@@ -190,10 +191,9 @@ def last_observed_poisson(feature_folder, target, start_date, month_lag=3, num_s
     # Concatenate the copies row-wise
     return pd.concat(dfs)
 
-
 def conflictology(feature_folder, target, start_date, month_lag=3, num_samples=1000):
     """
-    Perform conflictology benchmarking.
+    Conflictological prediction for say year 2022 based on the data from November 2020 through October 2021 
 
     Args:
         feature_folder (str): The path to the feature folder containing the data.
@@ -218,21 +218,31 @@ def conflictology(feature_folder, target, start_date, month_lag=3, num_samples=1
     last_observed_data = pq.ParquetDataset(
         feature_folder / target, filters=last_observed_month_id).read(columns=[unit, "ged_sb"]).to_pandas()
 
-    dfs = []
-    for month_id in range(window_start_month, window_start_month+12):
-        df = last_observed_data.copy()
-        df["month_id"] = month_id
-        print(df)
-        print(df.shape[0])
-        df['outcome'] = np.random.choice(df["ged_sb"], size=(df.shape[0], num_samples), replace=True).tolist()
-        df = df.drop(columns="ged_sb")
-        df = df.explode("outcome").astype("int32")
-        df['draw'] = df.groupby(['month_id', unit]).cumcount()
-        df.set_index(['month_id', unit, 'draw'], inplace=True)
-        dfs.append(df)
-    # Concatenate the copies row-wise
-    return pd.concat(dfs)
+    filter_last_year = (pac.field("month_id") <= window_start_month - month_lag) & (
+        pac.field("month_id") > window_start_month - (12 + month_lag))
+    pool = pq.ParquetDataset(
+        feature_folder / target, filters=filter_last_year).read(columns=['month_id', unit, "ged_sb"]).to_pandas()
+    print('Pool: ', pool)
 
+    print('Last observed data: ', last_observed_data)
+
+    df = pool.copy()
+    grouped = df.groupby(unit)['ged_sb'].apply(list).reset_index()
+    df['outcome'] = None
+    outcome_dict = dict(zip(grouped[unit], grouped['ged_sb']))
+    df['outcome'] = df[unit].map(outcome_dict)
+
+    for month_id in range(window_start_month, window_start_month+12):
+        print('Month ID: ', month_id)
+        print(df.loc[df['month_id'] == month_id-month_lag-11, 'month_id'])
+        df.loc[df['month_id'] == month_id-month_lag-11, 'month_id'] = month_id
+        print(df.loc[df['month_id'] == month_id, 'month_id'])
+    ###
+    df = df.drop(columns="ged_sb")
+    df = df.explode("outcome").astype("int32")
+    df['draw'] = df.groupby(['month_id', unit]).cumcount()
+    df.set_index(['month_id', unit, 'draw'], inplace=True)
+    return df
 if __name__ == "__main__":
     main()
 
