@@ -285,7 +285,6 @@ def conflictology_general(feature_folder, target, start_date, month_lag=3, num_s
     
     
     print(pool['month_id'].unique())
-    save_results(pool, 'conflictology_general', target, start_date, '/Users/noorainkazmi/Documents/pools')
 
     print('Last observed data: ', last_observed_data)
 
