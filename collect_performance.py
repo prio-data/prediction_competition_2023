@@ -10,7 +10,7 @@ from utilities import (
     views_month_id_to_month,
     TargetType,
     get_submission_details,
-    data_in_target,
+    is_parquet_in_target,
 )
 
 
@@ -60,7 +60,7 @@ def get_eval(
         raise ValueError(f'Target must be either "cm" or "pgm".')
 
     submission = Path(submission)
-    if not data_in_target(submission, target):
+    if not is_parquet_in_target(submission, target):
         raise FileNotFoundError
 
     groupby_inner = groupby.copy()
@@ -174,7 +174,7 @@ def evaluation_table(
 
     submissions = list_submissions(Path(submissions))
     submissions = [
-        submission for submission in submissions if data_in_target(submission, target)
+        submission for submission in submissions if is_parquet_in_target(submission, target)
     ]
 
     # Silently accept that there might not be evaluation data for all submissions for all targets for all windows.
@@ -230,9 +230,10 @@ def evaluation_table(
                 [{"selector": "tr:nth-child(even)", "props": css_alt_rows}]
             )
         )
-        df.to_latex(save_to / f"{file_stem}.tex")
-        df.to_html(save_to / f"{file_stem}.html")
-        df.to_excel(save_to / f"{file_stem}.xlsx")
+        #df.to_latex(save_to / f"{file_stem}.tex")
+        df.to_latex(os.path.join(save_to, f"{file_stem}.tex"))
+        df.to_html(os.path.join(save_to, f"{file_stem}.html"))
+        df.to_excel(os.path.join(save_to, f"{file_stem}.xlsx"))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -270,4 +271,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    evaluation_table(submissions=args.s, target=args.tt, groupby=args.g, save_to=args.o)
+    evaluation_table(submissions=args.s, target=args.tt, groupby=args.g, save_to=args.o,aggregate_submissions=True)

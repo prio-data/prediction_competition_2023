@@ -9,7 +9,6 @@ from scipy.signal import resample
 import argparse
 import pandas as pd
 import pyarrow
-
 import logging
 
 logging.getLogger(__name__)
@@ -105,7 +104,7 @@ def evaluate_forecast(
 
     # Save data in .parquet long-format (month_id, unit_id, metric, value)
     dfs = {"crps": crps, "ign": ign, "mis": mis}
-
+    
     for metric in ["crps", "ign", "mis"]:
         dfs[metric].rename(columns={metric: "value"}, inplace=True)
         metric_dir = save_to / f"metric={metric}"
@@ -212,7 +211,6 @@ def evaluate_all_submissions(
     data_column : str
         The name of the data column. Default = "outcome"
     """
-
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
     acutals = Path(acutals)
@@ -300,10 +298,8 @@ def main():
     draw_column = args.sc
     data_column = args.dc
     bins = args.ib
-
     evaluate_all_submissions(
-        submissions, acutals, targets, windows, expected, draw_column, data_column, bins
-    )
+        submissions, acutals, targets, windows, expected, bins, draw_column, data_column)
 
 
 if __name__ == "__main__":
