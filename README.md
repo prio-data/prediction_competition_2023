@@ -328,3 +328,47 @@ You can also get tables of global metrics in LaTeX, HTML, and Excel (this will a
 python collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template -t /path/to/folder/you/want/tables/in
 ```
 
+## Monthly update
+### 1. Update the actuals
+Make sure the actuals are up-to-date. If you don't know where to get them, ask Jim.
+
+### 2. Run the evaluation
+The dashboard requires a different structure than the one we use for evaluation. To get the data in the right format, run the following command:
+
+```console
+python evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals -r -st path/to/save
+```
+The new evaluation folder looks like this:
+```bash
+evaluation_folder_name
+├── cm
+│   ├── team_idenfitier_1
+│   │   ├── month_1.json
+│   │   └── month_2.json
+│   └── team_idenfitier_2
+│       ├── month_1.json
+│       └── month_2.json
+└── pgm
+    ├── team_idenfitier_3
+    │   ├── NGA_1
+    │   │   ├── month_1.json
+    │   │   └── month_2.json
+    │   └── NGA_2
+    │       ├── month_1.json
+    │       └── month_2.json
+    └── team_idenfitier_4
+        ├── NGA_1
+        │   ├── month_1.json
+        │   └── month_2.json
+        └── NGA_2
+            ├── month_1.json
+            └── month_2.json
+```
+
+### Optional: Clean the submissions
+Before running the evaluation, you can also clean the submissions to make sure they are compliant with the correct format. The cleaned data will be saved to another folder to make sure the original data is not overwritten.
+This is done by running the following command:
+
+```console
+clean_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -st /path/to/save
+```
