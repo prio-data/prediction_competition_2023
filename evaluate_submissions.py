@@ -12,11 +12,13 @@ import pyarrow
 import logging
 import time
 
-logging.getLogger(__name__)
-logging.basicConfig(
-    filename="evaluate_submission.log", encoding="utf-8", level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger('evaluate_logger')
+logger.setLevel(logging.INFO)
+file_handler = logging.FileHandler('evaluate_submission.log', encoding="utf-8")
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
 
 
 def evaluate_forecast(
@@ -55,7 +57,7 @@ def evaluate_forecast(
     )
 
     if bool(predictions['outcome'].isnull().any()):
-        logging.warning(
+        logger.warning(
             "Found NaN values. These are replaced with 0 before further calculations."
         )
         predictions["outcome"] = xarray.where(
@@ -63,7 +65,7 @@ def evaluate_forecast(
         )
 
     if bool((predictions["outcome"] > 10e9).any()):
-        logging.warning(
+        logger.warning(
             f"Found predictions larger than earth population. These are censored at 10 billion."
         )
         predictions["outcome"] = xarray.where(
@@ -82,7 +84,7 @@ def evaluate_forecast(
     )
 
     if predictions.dims["member"] != expected_samples:
-        logging.warning(
+        logger.warning(
             f'Number of samples ({predictions.dims["member"]}) is not 1000. Using scipy.signal.resample to get {expected_samples} samples when calculating Ignorance Score.'
         )
         np.random.seed(284975)
@@ -102,7 +104,7 @@ def evaluate_forecast(
         ).to_dataset(dim="variable")
 
     if bool((predictions["outcome"] < 0).any()):
-        logging.warning(
+        logger.warning(
             f"Found negative predictions. These are censored at 0 before calculating Ignorance Score."
         )
         predictions["outcome"] = xarray.where(
@@ -180,7 +182,7 @@ def evaluate_submission(
     """
 
     submission = Path(submission)
-    logging.info(f"Evaluating {submission.name}")
+    logger.info(f"Evaluating {submission.name}")
     for target in targets:
         for window in windows:
             if any(
@@ -264,7 +266,7 @@ def evaluate_all_submissions(
                 save_to
             )
         except Exception as e:
-            logging.error(f"{str(e)}")
+            logger.error(f"{str(e)}")
 
 
 def main():
@@ -346,7 +348,7 @@ def main():
 
 
 if __name__ == "__main__":
-    submission = './final_submissions/ShapeFinder'
+    submission = './final_submissions_cleaned'
     actuals = './actuals'
     targets = ['pgm', 'cm']
     windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
@@ -355,10 +357,10 @@ if __name__ == "__main__":
     draw_column = 'draw'
     data_column = 'outcome'
     reformat = True
-    save_to = './eval_24Sep'
+    save_to = './eval_26Sep'
     start_time = time.time()
-    evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
-    # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
     end_time = time.time()
     minutes = (end_time - start_time) / 60
-    logging.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
+    logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')

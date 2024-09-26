@@ -9,14 +9,6 @@ import datetime
 import yaml
 import json
 
-import logging
-
-logging.getLogger(__name__)
-logging.basicConfig(
-    filename="evaluate_submission.log", encoding="utf-8", level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 from pg2nga import pgIds
 
 TargetType = Literal["cm", "pgm"]
@@ -306,9 +298,9 @@ def match_actual_prediction_index(actuals, predictions):
     predictions_unit = predictions.index.get_level_values(1)
     actuals_unit = actuals.index.get_level_values(1)
     if predictions_unit.unique().difference(actuals_unit.unique()).any():
-        logging.warning(f"Target range mismatch! Prediction unit values "
-                        f"{predictions_unit.unique().difference(actuals_unit.unique()).tolist()} "
-                        f"are not included in the actuals. Changing predictions target range to match actuals unit range.")
+        # logging.warning(f"Target range mismatch! Prediction unit values "
+        #                 f"{predictions_unit.unique().difference(actuals_unit.unique()).tolist()} "
+        #                 f"are not included in the actuals. Changing predictions target range to match actuals unit range.")
         predictions = predictions[predictions_unit.isin(actuals_unit)]
 
     if actuals_unit.unique().difference(predictions_unit.unique()).any():
@@ -332,17 +324,15 @@ def match_actual_prediction_index(actuals, predictions):
                          f"Please update the actuals data.")
 
     if predictions_start != actuals_start or predictions_end != actuals_end:
-        logging.warning(
-            f"Month range mismatches! Actuals month range: {actuals_start} to {actuals_end}, "
-            f"Predictions month range: {predictions_start} to {predictions_end}. "
-            f"Changing index of actuals and predictions to range: {start} to {end}.")
+        # logging.warning(
+        #     f"Month range mismatches! Actuals month range: {actuals_start} to {actuals_end}, "
+        #     f"Predictions month range: {predictions_start} to {predictions_end}. "
+        #     f"Changing index of actuals and predictions to range: {start} to {end}.")
         actuals = actuals[(actuals_month >= start) & (actuals_month <= end)]
         predictions = predictions[(predictions_month >= start) & (predictions_month <= end)]
         return actuals, predictions
 
     return actuals, predictions
-
-
 
 
 def get_nga_by_pg(value):
@@ -358,9 +348,3 @@ def remove_duplicated_indexes(df):
     else:
         df_unique = df
     return df_unique
-
-
-
-
-
-
