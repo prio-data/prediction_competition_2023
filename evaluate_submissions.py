@@ -1,6 +1,6 @@
 from pathlib import Path
 from CompetitionEvaluation import structure_data, calculate_metrics
-from utilities import list_submissions, get_target_data, TargetType
+from utilities import list_submissions, get_target_data, TargetType, reformat_output
 import os
 import xarray
 import numpy as np
@@ -10,10 +10,12 @@ import argparse
 import pandas as pd
 import pyarrow
 import logging
+import time
 
 logging.getLogger(__name__)
 logging.basicConfig(
-    filename="evaluate_submission.log", encoding="utf-8", level=logging.INFO
+    filename="evaluate_submission.log", encoding="utf-8", level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
@@ -38,6 +40,7 @@ def evaluate_forecast(
         500.5,
         1000.5,
     ],
+    reformat: bool = False,
 ) -> None:
     if target == "pgm":
         unit = "priogrid_gid"
@@ -50,6 +53,14 @@ def evaluate_forecast(
     observed, predictions = structure_data(
         actuals, forecast, draw_column_name=draw_column, data_column_name=data_column
     )
+
+    if bool(predictions['outcome'].isnull().any()):
+        logging.warning(
+            "Found NaN values. These are replaced with 0 before further calculations."
+        )
+        predictions["outcome"] = xarray.where(
+            predictions["outcome"].isnull(), 0, predictions["outcome"]
+        )
 
     if bool((predictions["outcome"] > 10e9).any()):
         logging.warning(
@@ -104,12 +115,16 @@ def evaluate_forecast(
 
     # Save data in .parquet long-format (month_id, unit_id, metric, value)
     dfs = {"crps": crps, "ign": ign, "mis": mis}
-    
-    for metric in ["crps", "ign", "mis"]:
-        dfs[metric].rename(columns={metric: "value"}, inplace=True)
-        metric_dir = save_to / f"metric={metric}"
-        metric_dir.mkdir(exist_ok=True, parents=True)
-        dfs[metric].to_parquet(metric_dir / f"{metric}.parquet")
+
+    if not reformat:
+        for metric in ["crps", "ign", "mis"]:
+            dfs[metric].rename(columns={metric: "value"}, inplace=True)
+            metric_dir = save_to / f"metric={metric}"
+            metric_dir.mkdir(exist_ok=True, parents=True)
+            dfs[metric].to_parquet(metric_dir / f"{metric}.parquet")
+
+    else:
+        reformat_output(dfs["crps"], dfs["ign"], dfs["mis"], unit, save_to)
 
 
 def match_forecast_with_actuals(
@@ -134,6 +149,8 @@ def evaluate_submission(
     bins: list[float],
     draw_column: str = "draw",
     data_column: str = "outcome",
+    reformat: bool = False,
+    save_to: str | os.PathLike = None,
 ) -> None:
     """Loops over all targets and windows in a submission folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submission}/eval/{target}/window={window}/.
@@ -156,8 +173,14 @@ def evaluate_submission(
         The name of the sample column. We assume samples are drawn independently from the model. Default = "draw"
     data_column : str
         The name of the data column. Default = "outcome"
+    reformat: bool
+        If True, the output is reformatted based on the format discussed. Default = False
+    save_to: str | os.PathLike
+        Path to save reformatted data. Only used if reformat=True. Default = None
     """
 
+    submission = Path(submission)
+    logging.info(f"Evaluating {submission.name}")
     for target in targets:
         for window in windows:
             if any(
@@ -166,7 +189,11 @@ def evaluate_submission(
                 observed_df, pred_df = match_forecast_with_actuals(
                     submission, acutals, target, window
                 )
-                save_to = submission / "eval" / f"{target}" / f"window={window}"
+                if reformat:
+                    save_path = Path(save_to) / target / submission.name
+                    save_path.mkdir(exist_ok=True, parents=True)
+                else:
+                    save_path = submission / "eval" / f"{target}" / f"window={window}"
                 evaluate_forecast(
                     forecast=pred_df,
                     actuals=observed_df,
@@ -175,7 +202,8 @@ def evaluate_submission(
                     draw_column=draw_column,
                     data_column=data_column,
                     bins=bins,
-                    save_to=save_to,
+                    reformat=reformat,
+                    save_to=save_path,
                 )
 
 
@@ -188,6 +216,8 @@ def evaluate_all_submissions(
     bins: list[float],
     draw_column: str = "draw",
     data_column: str = "outcome",
+    reformat: bool = False,
+    save_to: str | os.PathLike = None,
 ) -> None:
     """Loops over all submissions in the submissions folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submissions}/{submission_name}/eval/{target}/window={window}/.
@@ -210,6 +240,10 @@ def evaluate_all_submissions(
         The name of the sample column. We assume samples are drawn independently from the model. Default = "draw"
     data_column : str
         The name of the data column. Default = "outcome"
+    reformat: bool
+        If True, the output is reformatted based on the format discussed. Default = False
+    save_to: str | os.PathLike
+        Path to save reformatted data. Only used if reformat=True. Default = None
     """
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
@@ -217,7 +251,6 @@ def evaluate_all_submissions(
 
     for submission in submissions:
         try:
-            logging.info(f"Evaluating {submission.name}")
             evaluate_submission(
                 submission,
                 acutals,
@@ -227,6 +260,8 @@ def evaluate_all_submissions(
                 bins,
                 draw_column,
                 data_column,
+                reformat,
+                save_to
             )
         except Exception as e:
             logging.error(f"{str(e)}")
@@ -260,7 +295,7 @@ def main():
         nargs="+",
         type=str,
         help="windows to evaluate",
-        default=["Y2018", "Y2019", "Y2020", "Y2021"],
+        default=["Y2018", "Y2019", "Y2020", "Y2021", "Y2022", "Y2023", "Y2024"],
     )
     parser.add_argument(
         "-e", metavar="expected", type=int, help="expected samples", default=1000
@@ -287,6 +322,12 @@ def main():
         help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.',
         default=[0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5],
     )
+    parser.add_argument(
+        "-r", metavar="reformat", type=bool, help="Reformat data", default=False
+    )
+    parser.add_argument(
+        "-st", metavar="save_to", type=str, help="Path to save reformatted data. Only used if reformat=True.", default=None
+    )
 
     args = parser.parse_args()
 
@@ -298,9 +339,26 @@ def main():
     draw_column = args.sc
     data_column = args.dc
     bins = args.ib
+    reformat = args.r
+    save_to = Path(args.st) if args.st else None
     evaluate_all_submissions(
-        submissions, acutals, targets, windows, expected, bins, draw_column, data_column)
+        submissions, acutals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
 
 
 if __name__ == "__main__":
-    main()
+    submission = './final_submissions/ShapeFinder'
+    actuals = './actuals'
+    targets = ['pgm', 'cm']
+    windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    expected = 1000
+    bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
+    draw_column = 'draw'
+    data_column = 'outcome'
+    reformat = True
+    save_to = './eval_24Sep'
+    start_time = time.time()
+    evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    end_time = time.time()
+    minutes = (end_time - start_time) / 60
+    logging.info(f'Done. Runtime: {minutes:.3f} minutes.\n')

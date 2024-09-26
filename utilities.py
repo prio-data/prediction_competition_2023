@@ -7,10 +7,17 @@ import itertools
 from typing import Literal
 import datetime
 import yaml
+import json
 
 import logging
 
 logging.getLogger(__name__)
+logging.basicConfig(
+    filename="evaluate_submission.log", encoding="utf-8", level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+from pg2nga import pgIds
 
 TargetType = Literal["cm", "pgm"]
 
@@ -211,7 +218,7 @@ def get_target_data(
     >>> from utilities import list_submissions, get_target_data
 
     >>> filter = pac.field("year") >= 2017
-    >>> subs = list_submissions(./submissions/")
+    >>> subs = list_submissions("./submissions/")
     >>> df = get_target_data(subs[0], target = "pgm", filters = filter)
 
     """
@@ -221,3 +228,139 @@ def get_target_data(
 
 def get_window_filters(window):
     pass
+
+
+def reformat_output(df_crps: pd.DataFrame, df_ign: pd.DataFrame, df_mis: pd.DataFrame,
+                  unit: str, save_to: str | os.PathLike) -> None:
+    """
+    Formats the output data and saves it as JSON files based on the specified level.
+    Based on discussion with Henrik, the json file of cm level should be structured as follows:
+    {
+        "country_id": [crps, ign, mis],
+        "country_id": [crps, ign, mis],
+        ...
+    }
+    The file is saved as cm/{model_name}/{month_id}.json
+
+    The json file of pgm level should be structured as follows:
+    {
+        "priogrid_gid": [crps, ign, mis],
+        "priogrid_gid": [crps, ign, mis],
+        ...
+    }
+    The file is saved as pgm/{model_name}/{nga}/{month_id}.json. Here, nga is the country code.
+    The country code can be obtained by using the pg2nga.py file.
+
+    Args:
+        df_crps (DataFrame): DataFrame containing the CRPS values.
+        df_ign (DataFrame): DataFrame containing the IGN values.
+        df_mis (DataFrame): DataFrame containing the MIS values.
+        unit (str): Level at which the data should be grouped ('country_id' or 'priogrid_gid').
+        save_to (str or Path): Path to the specific model directory where the JSON files should be saved.
+    """
+
+    # df_crps = df_crps.rename(columns={'value': 'crps'})
+    # df_ign = df_ign.rename(columns={'value': 'ign'})
+    # df_mis = df_mis.rename(columns={'value': 'mis'})
+    df_concat = pd.concat([df_crps, df_ign, df_mis], axis=1)
+
+    save_to = Path(save_to)
+
+    if unit == 'country_id':
+        for month_id, group_by_month in df_concat.groupby(level='month_id'):
+            data_dict = group_by_month[['crps', 'ign', 'mis']].groupby(level=unit).apply(
+                lambda x: x.values.flatten().tolist()).to_dict()
+            with open(f'{save_to}/{month_id}.json', 'w') as json_file:
+                json.dump(data_dict, json_file, indent=4)
+                
+    elif unit == 'priogrid_gid':
+        df_concat['nga'] = df_concat.index.get_level_values(level=unit).map(get_nga_by_pg)
+
+        for nga, group_by_nga in df_concat.groupby(by='nga'):
+            eval_nga_path = save_to / nga
+            eval_nga_path.mkdir(parents=True, exist_ok=True)
+
+            for month_id, group_by_month in group_by_nga.groupby(level='month_id'):
+                data_dict = group_by_month[['crps', 'ign', 'mis']].groupby(level=unit).apply(
+                    lambda x: x.values.flatten().tolist()).to_dict()
+
+                with open(f'{eval_nga_path}/{month_id}.json', 'w') as json_file:
+                    json.dump(data_dict, json_file, indent=4)
+
+
+def match_actual_prediction_index(actuals, predictions):
+    """
+    Matches the month and target range of the actual and prediction dataframes.
+    There is one team that has more country_ids that we have in the actuals data.
+    So we need to filter out the extra country_ids from the predictions data.
+
+    For year 2024, predictions do not cover the whole year window (this is by design).
+    So we need to align the actuals and predictions dataframes to the same month range.
+
+    Args:
+        actuals (DataFrame): DataFrame containing the actual values.
+        predictions (DataFrame): DataFrame containing the predictions.
+    """
+
+    # match target range
+    predictions_unit = predictions.index.get_level_values(1)
+    actuals_unit = actuals.index.get_level_values(1)
+    if predictions_unit.unique().difference(actuals_unit.unique()).any():
+        logging.warning(f"Target range mismatch! Prediction unit values "
+                        f"{predictions_unit.unique().difference(actuals_unit.unique()).tolist()} "
+                        f"are not included in the actuals. Changing predictions target range to match actuals unit range.")
+        predictions = predictions[predictions_unit.isin(actuals_unit)]
+
+    if actuals_unit.unique().difference(predictions_unit.unique()).any():
+        raise ValueError(f"Target range mismatch! Target unit values "
+                         f"{actuals_unit.unique().difference(predictions_unit.unique()).tolist()} "
+                            f"are not included in the predictions. Please update the predictions data.")
+
+
+    # match month_id
+    predictions_month = predictions.index.get_level_values("month_id")
+    actuals_month = actuals.index.get_level_values("month_id")
+    predictions_start, predictions_end = predictions_month.min(), predictions_month.max()
+    actuals_start, actuals_end = actuals_month.min(), actuals_month.max()
+
+    # The predictions might not start at the same month as the actuals start.
+    # Also, we might not have actuals for the whole year, so the end is the last month of the actuals
+    start, end = predictions_start, actuals_end
+
+    if actuals_end < predictions_start:
+        raise ValueError(f"Actuals end month {actuals_end} is before predictions start month {predictions_start}. "
+                         f"Please update the actuals data.")
+
+    if predictions_start != actuals_start or predictions_end != actuals_end:
+        logging.warning(
+            f"Month range mismatches! Actuals month range: {actuals_start} to {actuals_end}, "
+            f"Predictions month range: {predictions_start} to {predictions_end}. "
+            f"Changing index of actuals and predictions to range: {start} to {end}.")
+        actuals = actuals[(actuals_month >= start) & (actuals_month <= end)]
+        predictions = predictions[(predictions_month >= start) & (predictions_month <= end)]
+        return actuals, predictions
+
+    return actuals, predictions
+
+
+
+
+def get_nga_by_pg(value):
+    for key, values in pgIds.items():
+        if value in values:
+            return key
+    raise ValueError(f"{value} doesn't have a corresponding country")
+
+
+def remove_duplicated_indexes(df):
+    if df.index.duplicated().any():
+        df_unique = df[~df.index.duplicated(keep='first')]
+    else:
+        df_unique = df
+    return df_unique
+
+
+
+
+
+

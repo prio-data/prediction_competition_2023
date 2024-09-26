@@ -8,6 +8,7 @@ import xskillscore as xs
 
 from IgnoranceScore import ensemble_ignorance_score_xskillscore
 from IntervalScore import mean_interval_score_xskillscore
+from utilities import remove_duplicated_indexes, match_actual_prediction_index
 
 from typing import List, Union
 
@@ -85,6 +86,10 @@ def structure_data(
         observed = observed.set_index(["month_id", "country_id"])
     else:
         TypeError("priogrid_gid or country_id must be an identifier")
+
+    # Some groups have multiple values for the same index, this function removes duplicates and keeps the first value.
+    predictions = remove_duplicated_indexes(predictions)
+    observed, predictions = match_actual_prediction_index(observed, predictions)
 
     # Convert to xarray
     xpred = predictions.to_xarray()
