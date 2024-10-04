@@ -306,7 +306,7 @@ def match_actual_prediction_index(actuals, predictions):
     if actuals_unit.unique().difference(predictions_unit.unique()).any():
         raise ValueError(f"Target range mismatch! Target unit values "
                          f"{actuals_unit.unique().difference(predictions_unit.unique()).tolist()} "
-                            f"are not included in the predictions. Please update the predictions data.")
+                        f"are not included in the predictions. Please update the predictions data.")
 
 
     # match month_id
@@ -343,8 +343,11 @@ def get_nga_by_pg(value):
 
 
 def remove_duplicated_indexes(df):
+    # Remove duplicated indexes by reindexing
     if df.index.duplicated().any():
-        df_unique = df[~df.index.duplicated(keep='first')]
+        df_reset = df.reset_index()
+        df_reset[df.index.names[2]] = df_reset.groupby([df.index.names[0], df.index.names[1]]).cumcount() + 1
+        df_unique = df_reset.set_index(df.index.names)
     else:
         df_unique = df
     return df_unique
