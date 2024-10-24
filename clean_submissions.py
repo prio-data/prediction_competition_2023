@@ -103,7 +103,7 @@ def check_structure(predictions: pd.DataFrame,
     else:
         TypeError("priogrid_gid or country_id must be an identifier")
 
-    # Some groups have multiple values for the same index, this function removes duplicates and keeps the first value.
+    # Some groups have multiple values for the same index, this function removes duplicates
     predictions = remove_duplicated_indexes(predictions)
     xpred = predictions.to_xarray()
 
@@ -272,11 +272,12 @@ def main():
         submissions, save_to, targets, windows, expected_samples, draw_column, data_column)
 
 if __name__ == "__main__":
-    submission = './final_submissions'
-    save_to = './final_submissions_cleaned/'
-    targets = ["pgm"]
-    targets = ['pgm', 'cm']
-    windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
-    expected = 1000
-    clean_all_submissions(submission, save_to, targets, windows, expected)
+    main()
+    # submission = './final_submissions/conflictforecast_v2'
+    # save_to = './final_submissions_cleaned/'
+    # targets = ['pgm', 'cm']
+    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    # expected = 1000
+    # clean_submission(submission, save_to, targets, windows, expected)
+    # clean_all_submissions(submission, save_to, targets, windows, expected)
 

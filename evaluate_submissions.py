@@ -20,29 +20,17 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
-
 def evaluate_forecast(
     forecast: pd.DataFrame,
     actuals: pd.DataFrame,
     target: TargetType,
     expected_samples: int,
+    draw_column: str,
+    data_column: str,
+    bins: list[float], 
+    reformat: bool,
     save_to: str | os.PathLike,
-    draw_column: str = "draw",
-    data_column: str = "outcome",
-    bins: list[float] = [
-        0,
-        0.5,
-        2.5,
-        5.5,
-        10.5,
-        25.5,
-        50.5,
-        100.5,
-        250.5,
-        500.5,
-        1000.5,
-    ],
-    reformat: bool = False,
+    data_format: str
 ) -> None:
     if target == "pgm":
         unit = "priogrid_gid"
@@ -72,17 +60,6 @@ def evaluate_forecast(
             predictions["outcome"] > 10e9, 10e9, predictions["outcome"]
         )
 
-    crps = calculate_metrics(
-        observed, predictions, metric="crps", aggregate_over="nothing"
-    )
-    mis = calculate_metrics(
-        observed,
-        predictions,
-        metric="mis",
-        prediction_interval_level=0.9,
-        aggregate_over="nothing",
-    )
-
     if predictions.dims["member"] != expected_samples:
         logger.warning(
             f'Number of samples ({predictions.dims["member"]}) is not 1000. Using scipy.signal.resample to get {expected_samples} samples when calculating Ignorance Score.'
@@ -111,6 +88,17 @@ def evaluate_forecast(
             predictions["outcome"] < 0, 0, predictions["outcome"]
         )
 
+    crps = calculate_metrics(
+        observed, predictions, metric="crps", aggregate_over="nothing"
+    )
+    mis = calculate_metrics(
+        observed,
+        predictions,
+        metric="mis",
+        prediction_interval_level=0.9,
+        aggregate_over="nothing",
+    )
+
     ign = calculate_metrics(
         observed, predictions, metric="ign", bins=bins, aggregate_over="nothing"
     )
@@ -126,7 +114,7 @@ def evaluate_forecast(
             dfs[metric].to_parquet(metric_dir / f"{metric}.parquet")
 
     else:
-        reformat_output(dfs["crps"], dfs["ign"], dfs["mis"], unit, save_to)
+        reformat_output(dfs["crps"], dfs["ign"], dfs["mis"], unit, save_to, data_format)
 
 
 def match_forecast_with_actuals(
@@ -153,6 +141,7 @@ def evaluate_submission(
     data_column: str = "outcome",
     reformat: bool = False,
     save_to: str | os.PathLike = None,
+    data_format: str = "json"
 ) -> None:
     """Loops over all targets and windows in a submission folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submission}/eval/{target}/window={window}/.
@@ -179,6 +168,8 @@ def evaluate_submission(
         If True, the output is reformatted based on the format discussed. Default = False
     save_to: str | os.PathLike
         Path to save reformatted data. Only used if reformat=True. Default = None
+    data_format: str
+        Format of data to save. Default is json.
     """
 
     submission = Path(submission)
@@ -200,12 +191,13 @@ def evaluate_submission(
                     forecast=pred_df,
                     actuals=observed_df,
                     target=target,
-                    expected_samples=expected,
+                    expected_samples=expected,   
                     draw_column=draw_column,
                     data_column=data_column,
                     bins=bins,
                     reformat=reformat,
                     save_to=save_path,
+                    data_format=data_format
                 )
 
 
@@ -220,6 +212,7 @@ def evaluate_all_submissions(
     data_column: str = "outcome",
     reformat: bool = False,
     save_to: str | os.PathLike = None,
+    data_format: str = "json"
 ) -> None:
     """Loops over all submissions in the submissions folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submissions}/{submission_name}/eval/{target}/window={window}/.
@@ -246,6 +239,8 @@ def evaluate_all_submissions(
         If True, the output is reformatted based on the format discussed. Default = False
     save_to: str | os.PathLike
         Path to save reformatted data. Only used if reformat=True. Default = None
+    data_format: str
+        Format of data to save. Default is json.
     """
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
@@ -263,7 +258,8 @@ def evaluate_all_submissions(
                 draw_column,
                 data_column,
                 reformat,
-                save_to
+                save_to,
+                data_format
             )
         except Exception as e:
             logger.error(f"{str(e)}")
@@ -276,91 +272,122 @@ def main():
     )
     parser.add_argument(
         "-s",
-        metavar="submissions",
+        "--submissions",
         type=str,
         help="path to folder with submissions complying with submission_template",
     )
     parser.add_argument(
-        "-a", metavar="actuals", type=str, help="path to folder with actuals"
+        "-a", 
+        "--actuals", 
+        type=str, 
+        help="path to folder with actuals"
     )
     parser.add_argument(
         "-t",
-        metavar="targets",
+        "--targets",
         nargs="+",
         type=str,
-        help="pgm or cm or both",
         default=["pgm", "cm"],
+        help="pgm or cm or both"
     )
     parser.add_argument(
         "-w",
-        metavar="windows",
+        "--windows",
         nargs="+",
         type=str,
-        help="windows to evaluate",
         default=["Y2018", "Y2019", "Y2020", "Y2021", "Y2022", "Y2023", "Y2024"],
+        help="windows to evaluate"
     )
     parser.add_argument(
-        "-e", metavar="expected", type=int, help="expected samples", default=1000
+        "-e", 
+        "--expected", 
+        type=int, 
+        default=1000,
+        help="expected samples"
     )
     parser.add_argument(
         "-sc",
-        metavar="draw_column",
+        "--draw_column",
         type=str,
-        help="(Optional) name of column for the unique samples",
         default="draw",
+        help="(Optional) name of column for the unique samples"
     )
     parser.add_argument(
         "-dc",
-        metavar="data_column",
+        "--data_column",
         type=str,
-        help="(Optional) name of column with data, must be same in both observed and predictions data",
         default="outcome",
+        help="(Optional) name of column with data, must be same in both observed and predictions data"
     )
     parser.add_argument(
         "-ib",
-        metavar="bins",
+        "--bins",
         nargs="+",
         type=float,
-        help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.',
         default=[0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5],
+        help='Set a binning scheme for the ignorance score. List or integer (nbins). E.g., "--ib 0 0.5 1 5 10 100 1000". None also allowed.'
     )
     parser.add_argument(
-        "-r", metavar="reformat", type=bool, help="Reformat data", default=False
+        "-r", 
+        "--reformat", 
+        action="store_true",
+        help="Flag to reformat data to match the requirement of dashboard"
     )
     parser.add_argument(
-        "-st", metavar="save_to", type=str, help="Path to save reformatted data. Only used if reformat=True.", default=None
+        "-st", 
+        "--save_to", 
+        type=str, 
+        default=None,
+        help="Path to save reformatted data. Only used if reformat=True."
+    )
+    parser.add_argument(
+        "-df", 
+        "--data_format", 
+        default="json", 
+        choices=["parquet", "json", "all"], 
+        help="Format of data to save. Only used if reformat=True. Default is json."
     )
 
     args = parser.parse_args()
 
-    submissions = Path(args.s)
-    acutals = Path(args.a)
-    expected = args.e
-    targets = args.t
-    windows = args.w
-    draw_column = args.sc
-    data_column = args.dc
-    bins = args.ib
-    reformat = args.r
-    save_to = Path(args.st) if args.st else None
-    evaluate_all_submissions(
-        submissions, acutals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    submissions = Path(args.submissions)
+    acutals = Path(args.actuals)
+    expected = args.expected
+    targets = args.targets
+    windows = args.windows
+    draw_column = args.draw_column
+    data_column = args.data_column
+    bins = args.bins
+    reformat = args.reformat
+    save_to = Path(args.save_to) if args.save_to else None
+    data_format = args.data_format
 
-
-if __name__ == "__main__":
-    submission = './final_submissions_cleaned'
-    actuals = './actuals'
-    targets = ['pgm', 'cm']
-    windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
-    expected = 1000
-    bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
-    draw_column = 'draw'
-    data_column = 'outcome'
-    reformat = True
-    save_to = './eval_26Sep'
     start_time = time.time()
-    # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
-    evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+
+    evaluate_all_submissions(
+        submissions, acutals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, data_format)
+    
     end_time = time.time()
     minutes = (end_time - start_time) / 60
     logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
+
+
+if __name__ == "__main__":
+    main()
+    # submission = './final_submissions/conflictforecast_v2'
+    # actuals = './actuals'
+    # targets = ['cm', 'pgm']
+    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    # expected = 1000
+    # bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
+    # draw_column = 'draw'
+    # data_column = 'outcome'
+    # reformat = True
+    # save_to = './eval_24Sep'
+    # data_format = 'json'
+    # start_time = time.time()
+    # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, data_format)
+    # # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    # end_time = time.time()
+    # minutes = (end_time - start_time) / 60
+    # logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
