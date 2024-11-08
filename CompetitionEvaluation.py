@@ -87,7 +87,7 @@ def structure_data(
     else:
         TypeError("priogrid_gid or country_id must be an identifier")
 
-    # Some groups have multiple values for the same index, this function removes duplicates and keeps the first value.
+    # Some groups have multiple values for the same index, this function removes duplicates 
     predictions = remove_duplicated_indexes(predictions)
     observed, predictions = match_actual_prediction_index(observed, predictions)
 
