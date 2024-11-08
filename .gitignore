@@ -2,11 +2,18 @@
 *.p
 *.pyc
 */.DS_Store
+*.DS_Store
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 .vscode
 __pycache__
 *.log
+*.json
+*.parquet
+*.xml
+*.yml
+*.pdf
+*.txt
 
 # ignore ALL files in ANY directory named:
 memos/
