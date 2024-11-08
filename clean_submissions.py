@@ -154,13 +154,6 @@ def clean_submission(
                 predictions = check_structure(predictions, draw_column, data_column)
                 predictions = check_values(predictions, target, expected_samples)
 
-                if target == "pgm":
-                    predictions.index.names = ["month_id", "priogrid_gid", "draw"]
-                elif target == "cm":
-                    predictions.index.names = ["month_id", "country_id", "draw"]
-                else:
-                    raise ValueError(f'Target {target} must be either "pgm" or "cm".')
-
                 save_path = Path(save_to) / submission.name / target / f"window={window}"
                 save_path.mkdir(exist_ok=True, parents=True)
                 predictions.to_parquet(save_path / f"{submission.name}_{target}_{window}.parquet")
@@ -279,12 +272,12 @@ def main():
         submissions, save_to, targets, windows, expected_samples, draw_column, data_column)
 
 if __name__ == "__main__":
-    # main()
-    submission = './benchmarks'
-    save_to = './benchmarks_cleaned_Nov8/'
-    targets = ['pgm', 'cm']
-    windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
-    expected = 1000
+    main()
+    # submission = './final_submissions/conflictforecast_v2'
+    # save_to = './final_submissions_cleaned/'
+    # targets = ['pgm', 'cm']
+    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    # expected = 1000
     # clean_submission(submission, save_to, targets, windows, expected)
-    clean_all_submissions(submission, save_to, targets, windows, expected)
+    # clean_all_submissions(submission, save_to, targets, windows, expected)
 
