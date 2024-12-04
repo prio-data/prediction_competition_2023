@@ -342,27 +342,15 @@ The new evaluation folder looks like this:
 ```bash
 evaluation_folder_name
 ├── cm
-│   ├── team_idenfitier_1
-│   │   ├── month_1.json
-│   │   └── month_2.json
-│   └── team_idenfitier_2
-│       ├── month_1.json
-│       └── month_2.json
+│   ├── team_idenfitier_1.json
+│   └── team_idenfitier_2.json
 └── pgm
     ├── team_idenfitier_3
-    │   ├── NGA_1
-    │   │   ├── month_1.json
-    │   │   └── month_2.json
-    │   └── NGA_2
-    │       ├── month_1.json
-    │       └── month_2.json
+    │   ├── NGA_1.json
+    │   └── NGA_2.json
     └── team_idenfitier_4
-        ├── NGA_1
-        │   ├── month_1.json
-        │   └── month_2.json
-        └── NGA_2
-            ├── month_1.json
-            └── month_2.json
+        ├── NGA_1.json
+        └── NGA_2.json
 ```
 
 ### Optional: Clean the submissions
