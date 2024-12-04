@@ -222,7 +222,7 @@ def reformat_output(df_crps: pd.DataFrame,
                     df_ign: pd.DataFrame, 
                     df_mis: pd.DataFrame,
                     target: str, 
-                    save_to: str | os.PathLike, 
+                    save_path: str | os.PathLike, 
                     name: str, 
                     file_format: str) -> None:
     """
@@ -249,7 +249,7 @@ def reformat_output(df_crps: pd.DataFrame,
         df_ign (DataFrame): DataFrame containing the IGN values.
         df_mis (DataFrame): DataFrame containing the MIS values.
         target (str): Level at which the data should be grouped ("cm" or "pgm").
-        save_to (str or Path): Path to the specific model directory where the files should be saved.
+        save_path (str or Path): Path to the specific model directory where the files should be saved.
         name (str): Name of the model.
         file_format (str): File format to save the data in ("json" or "parquet").
     """
@@ -266,11 +266,9 @@ def reformat_output(df_crps: pd.DataFrame,
     # df_mis = df_mis.rename(columns={"value": "mis"})
     df_concat = pd.concat([df_crps, df_ign, df_mis], axis=1)
 
-    save_to = Path(save_to)
-
     if unit == "country_id":
         if file_format in ["parquet", "all"]:
-            df_concat.to_parquet(f"{save_to}/{name}.parquet")
+            df_concat.to_parquet(f"{save_path}/{name}.parquet")
         if file_format in ["json", "all"]:
             data_dict = {}
             for (month_id, c_id), values in df_concat.iterrows():
@@ -278,23 +276,26 @@ def reformat_output(df_crps: pd.DataFrame,
                     data_dict[c_id] = {}
                 data_dict[c_id][month_id] = values.tolist()
     
-            with open(f"{save_to}/{name}.json", "w") as json_file:
+            with open(f"{save_path}/{name}.json", "w") as json_file:
                 json.dump(data_dict, json_file, indent=4)
             
                 
     elif unit == "priogrid_gid":
         df_concat["nga"] = df_concat.index.get_level_values(level=unit).map(get_nga_by_pg)
+        save_path = Path(save_path) / name
+        save_path.mkdir(parents=True, exist_ok=True)
 
         for nga, group_by_nga in df_concat.groupby(by="nga"):
             if file_format in ["parquet", "all"]:
-                group_by_nga.to_parquet(f"{save_to}/{nga}.parquet")
+                df_group_by_nga = group_by_nga[['crps', 'ign', 'mis']]
+                df_group_by_nga.to_parquet(f"{save_path}/{nga}.parquet")
             if file_format in ["json", "all"]:
                 data_dict = {}
                 for (month_id, p_id), values in group_by_nga.iterrows():
                     if p_id not in data_dict:
                         data_dict[p_id] = {}
                     data_dict[p_id][month_id] = values.tolist()[:3] # ignore the nga column
-                with open(f"{save_to}/{nga}.json", "w") as json_file:
+                with open(f"{save_path}/{nga}.json", "w") as json_file:
                     json.dump(data_dict, json_file, indent=4)
             
 

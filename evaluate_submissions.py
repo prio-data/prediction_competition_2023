@@ -15,7 +15,7 @@ import time
 logger = logging.getLogger('evaluate_logger')
 logger.setLevel(logging.INFO)
 file_handler = logging.FileHandler('evaluate_submission.log', encoding="utf-8")
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s %(pathname)s [%(filename)s:%(lineno)d] - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
@@ -29,7 +29,7 @@ def evaluate_forecast(
     data_column: str,
     bins: list[float], 
     reformat: bool,
-    save_to: str | os.PathLike,
+    save_path: str | os.PathLike,
 ) -> None:
     if target == "pgm":
         unit = "priogrid_gid"
@@ -108,7 +108,7 @@ def evaluate_forecast(
     if not reformat:
         for metric in ["crps", "ign", "mis"]:
             dfs[metric].rename(columns={metric: "value"}, inplace=True)
-            metric_dir = save_to / f"metric={metric}"
+            metric_dir = save_path / f"metric={metric}"
             metric_dir.mkdir(exist_ok=True, parents=True)
             dfs[metric].to_parquet(metric_dir / f"{metric}.parquet")
 
@@ -183,11 +183,8 @@ def evaluate_submission(
                 observed_df, pred_df = match_forecast_with_actuals(
                     submission, acutals, target, window
                 )
-                if reformat:
-                    save_path = Path(save_to) / target / submission.name
-                    save_path.mkdir(exist_ok=True, parents=True)
-                else:
-                    save_path = submission / "eval" / f"{target}" / f"window={window}"
+                
+                save_path = submission / "eval" / f"{target}" / f"window={window}"
                 df = evaluate_forecast(
                     forecast=pred_df,
                     actuals=observed_df,
@@ -197,12 +194,14 @@ def evaluate_submission(
                     data_column=data_column,
                     bins=bins,
                     reformat=reformat,
-                    save_to=save_path
+                    save_path=save_path
                 )
                 all_window.append(df)
 
         if reformat and len(all_window) > 0:
             logger.info(f"Reformatting {submission.name}")
+            save_path = Path(save_to) / target
+            Path(save_path).mkdir(parents=True, exist_ok=True)
             dfs = {key: pd.concat([df[key] for df in all_window]) for key in all_window[0].keys()}
             reformat_output(dfs["crps"], dfs["ign"], dfs["mis"], target, save_path, submission.name, file_format)
 
@@ -380,21 +379,21 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    # submission = './final_submissions_cleaned/'
-    # actuals = './actuals'
-    # targets = ['cm', 'pgm']
-    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
-    # expected = 1000
-    # bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
-    # draw_column = 'draw'
-    # data_column = 'outcome'
-    # reformat = True
-    # save_to = './eval_04Dec'
-    # file_format = "json"
-    # start_time = time.time()
-    # # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
+    # main()
+    submission = './final_submissions_cleaned/unibw_trees_global'
+    actuals = './actuals'
+    targets = ['pgm']
+    windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    expected = 1000
+    bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
+    draw_column = 'draw'
+    data_column = 'outcome'
+    reformat = True
+    save_to = './eval_04Dec'
+    file_format = "json"
+    start_time = time.time()
+    evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
     # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
-    # end_time = time.time()
-    # minutes = (end_time - start_time) / 60
-    # logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
+    end_time = time.time()
+    minutes = (end_time - start_time) / 60
+    logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
