@@ -379,21 +379,21 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    submission = './final_submissions_cleaned/unibw_trees_global'
-    actuals = './actuals'
-    targets = ['pgm']
-    windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
-    expected = 1000
-    bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
-    draw_column = 'draw'
-    data_column = 'outcome'
-    reformat = True
-    save_to = './eval_04Dec'
-    file_format = "json"
-    start_time = time.time()
-    evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
+    main()
+    # submission = './final_submissions_cleaned'
+    # actuals = './actuals'
+    # targets = ['pgm']
+    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    # expected = 1000
+    # bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
+    # draw_column = 'draw'
+    # data_column = 'outcome'
+    # reformat = True
+    # save_to = './eval_04Dec'
+    # file_format = "json"
+    # start_time = time.time()
+    # # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
     # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
-    end_time = time.time()
-    minutes = (end_time - start_time) / 60
-    logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
+    # end_time = time.time()
+    # minutes = (end_time - start_time) / 60
+    # logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
