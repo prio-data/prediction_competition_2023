@@ -30,7 +30,6 @@ def evaluate_forecast(
     bins: list[float], 
     reformat: bool,
     save_to: str | os.PathLike,
-    data_format: str
 ) -> None:
     if target == "pgm":
         unit = "priogrid_gid"
@@ -113,8 +112,8 @@ def evaluate_forecast(
             metric_dir.mkdir(exist_ok=True, parents=True)
             dfs[metric].to_parquet(metric_dir / f"{metric}.parquet")
 
-    else:
-        reformat_output(dfs["crps"], dfs["ign"], dfs["mis"], unit, save_to, data_format)
+    return dfs
+        
 
 
 def match_forecast_with_actuals(
@@ -137,11 +136,11 @@ def evaluate_submission(
     windows: list[str],
     expected: int,
     bins: list[float],
-    draw_column: str = "draw",
-    data_column: str = "outcome",
-    reformat: bool = False,
-    save_to: str | os.PathLike = None,
-    data_format: str = "json"
+    draw_column: str,
+    data_column: str,
+    reformat: bool,
+    save_to: str | os.PathLike,
+    file_format: str
 ) -> None:
     """Loops over all targets and windows in a submission folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submission}/eval/{target}/window={window}/.
@@ -168,17 +167,19 @@ def evaluate_submission(
         If True, the output is reformatted based on the format discussed. Default = False
     save_to: str | os.PathLike
         Path to save reformatted data. Only used if reformat=True. Default = None
-    data_format: str
-        Format of data to save. Default is json.
+    file_format: str
+        File format for the output. Default is json.
     """
 
     submission = Path(submission)
     logger.info(f"Evaluating {submission.name}")
     for target in targets:
+        all_window = []
         for window in windows:
             if any(
                 (submission / target).glob("**/*.parquet")
             ):  # test if there are prediction files in the target
+                logger.info(f"Target: {target}, Window: {window}")
                 observed_df, pred_df = match_forecast_with_actuals(
                     submission, acutals, target, window
                 )
@@ -187,7 +188,7 @@ def evaluate_submission(
                     save_path.mkdir(exist_ok=True, parents=True)
                 else:
                     save_path = submission / "eval" / f"{target}" / f"window={window}"
-                evaluate_forecast(
+                df = evaluate_forecast(
                     forecast=pred_df,
                     actuals=observed_df,
                     target=target,
@@ -196,9 +197,14 @@ def evaluate_submission(
                     data_column=data_column,
                     bins=bins,
                     reformat=reformat,
-                    save_to=save_path,
-                    data_format=data_format
+                    save_to=save_path
                 )
+                all_window.append(df)
+
+        if reformat and len(all_window) > 0:
+            logger.info(f"Reformatting {submission.name}")
+            dfs = {key: pd.concat([df[key] for df in all_window]) for key in all_window[0].keys()}
+            reformat_output(dfs["crps"], dfs["ign"], dfs["mis"], target, save_path, submission.name, file_format)
 
 
 def evaluate_all_submissions(
@@ -208,11 +214,11 @@ def evaluate_all_submissions(
     windows: list[str],
     expected: int,
     bins: list[float],
-    draw_column: str = "draw",
-    data_column: str = "outcome",
-    reformat: bool = False,
-    save_to: str | os.PathLike = None,
-    data_format: str = "json"
+    draw_column: str,
+    data_column: str,
+    reformat: bool,
+    save_to: str | os.PathLike,
+    file_format: str
 ) -> None:
     """Loops over all submissions in the submissions folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submissions}/{submission_name}/eval/{target}/window={window}/.
@@ -239,8 +245,8 @@ def evaluate_all_submissions(
         If True, the output is reformatted based on the format discussed. Default = False
     save_to: str | os.PathLike
         Path to save reformatted data. Only used if reformat=True. Default = None
-    data_format: str
-        Format of data to save. Default is json.
+    file_format: str
+        File format for the output. Default is json.
     """
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
@@ -259,7 +265,7 @@ def evaluate_all_submissions(
                 data_column,
                 reformat,
                 save_to,
-                data_format
+                file_format
             )
         except Exception as e:
             logger.error(f"{str(e)}")
@@ -341,11 +347,12 @@ def main():
         help="Path to save reformatted data. Only used if reformat=True."
     )
     parser.add_argument(
-        "-df", 
-        "--data_format", 
-        default="json", 
-        choices=["parquet", "json", "all"], 
-        help="Format of data to save. Only used if reformat=True. Default is json."
+        "-ff",
+        "--file_format",
+        type="str",
+        default="json",
+        choices=["json", "parquet", "all"],
+        help="File format for the output. Default is json."
     )
 
     args = parser.parse_args()
@@ -360,12 +367,12 @@ def main():
     bins = args.bins
     reformat = args.reformat
     save_to = Path(args.save_to) if args.save_to else None
-    data_format = args.data_format
+    file_format = args.file_format
 
     start_time = time.time()
 
     evaluate_all_submissions(
-        submissions, acutals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, data_format)
+        submissions, acutals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
     
     end_time = time.time()
     minutes = (end_time - start_time) / 60
@@ -374,7 +381,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # submission = './final_submissions/conflictforecast_v2'
+    # submission = './final_submissions_cleaned/'
     # actuals = './actuals'
     # targets = ['cm', 'pgm']
     # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
@@ -383,11 +390,11 @@ if __name__ == "__main__":
     # draw_column = 'draw'
     # data_column = 'outcome'
     # reformat = True
-    # save_to = './eval_24Sep'
-    # data_format = 'json'
+    # save_to = './eval_04Dec'
+    # file_format = "json"
     # start_time = time.time()
-    # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, data_format)
-    # # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to)
+    # # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
+    # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
     # end_time = time.time()
     # minutes = (end_time - start_time) / 60
     # logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')

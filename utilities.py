@@ -218,12 +218,13 @@ def get_target_data(
     return read_parquet(submission / target, filters=filters)
 
 
-def get_window_filters(window):
-    pass
-
-
-def reformat_output(df_crps: pd.DataFrame, df_ign: pd.DataFrame, df_mis: pd.DataFrame,
-                  unit: str, save_to: str | os.PathLike, data_format: str) -> None:
+def reformat_output(df_crps: pd.DataFrame, 
+                    df_ign: pd.DataFrame, 
+                    df_mis: pd.DataFrame,
+                    target: str, 
+                    save_to: str | os.PathLike, 
+                    name: str, 
+                    file_format: str) -> None:
     """
     Formats the output data and saves it as JSON files based on the specified level.
     Based on discussion with Henrik, the json file of cm level should be structured as follows:
@@ -232,7 +233,7 @@ def reformat_output(df_crps: pd.DataFrame, df_ign: pd.DataFrame, df_mis: pd.Data
         "country_id": [crps, ign, mis],
         ...
     }
-    The file is saved as cm/{model_name}/{month_id}.json
+    The file is saved as cm/{model_name}.json
 
     The json file of pgm level should be structured as follows:
     {
@@ -240,18 +241,26 @@ def reformat_output(df_crps: pd.DataFrame, df_ign: pd.DataFrame, df_mis: pd.Data
         "priogrid_gid": [crps, ign, mis],
         ...
     }
-    The file is saved as pgm/{model_name}/{nga}/{month_id}.json. Here, nga is the country code.
+    The file is saved as pgm/{model_name}/{nga}.json. Here, nga is the country code.
     The country code can be obtained by using the pg2nga.py file.
 
     Args:
         df_crps (DataFrame): DataFrame containing the CRPS values.
         df_ign (DataFrame): DataFrame containing the IGN values.
         df_mis (DataFrame): DataFrame containing the MIS values.
-        unit (str): Level at which the data should be grouped ("country_id" or "priogrid_gid").
+        target (str): Level at which the data should be grouped ("cm" or "pgm").
         save_to (str or Path): Path to the specific model directory where the files should be saved.
-        data_format (str): Format of the data ("json", "parquet", "all").
+        name (str): Name of the model.
+        file_format (str): File format to save the data in ("json" or "parquet").
     """
 
+    if target == "pgm":
+        unit = "priogrid_gid"
+    elif target == "cm":
+        unit = "country_id"
+    else:
+        raise ValueError(f'Target {target} must be either "pgm" or "cm".')
+    
     # df_crps = df_crps.rename(columns={"value": "crps"})
     # df_ign = df_ign.rename(columns={"value": "ign"})
     # df_mis = df_mis.rename(columns={"value": "mis"})
@@ -260,33 +269,34 @@ def reformat_output(df_crps: pd.DataFrame, df_ign: pd.DataFrame, df_mis: pd.Data
     save_to = Path(save_to)
 
     if unit == "country_id":
-        for month_id, group_by_month in df_concat.groupby(level="month_id"):
-            df = group_by_month[["crps", "ign", "mis"]]
-            data_dict = group_by_month[["crps", "ign", "mis"]].groupby(level=unit).apply(
-                lambda x: x.values.flatten().tolist()).to_dict()
-            if data_format in ["json", "all"]:
-                with open(f"{save_to}/{month_id}.json", "w") as json_file:
-                    json.dump(data_dict, json_file, indent=4)
-            if data_format in ["parquet", "all"]:
-                df.to_parquet(f"{save_to}/{month_id}.parquet")
+        if file_format in ["parquet", "all"]:
+            df_concat.to_parquet(f"{save_to}/{name}.parquet")
+        if file_format in ["json", "all"]:
+            data_dict = {}
+            for (month_id, c_id), values in df_concat.iterrows():
+                if c_id not in data_dict:
+                    data_dict[c_id] = {}
+                data_dict[c_id][month_id] = values.tolist()
+    
+            with open(f"{save_to}/{name}.json", "w") as json_file:
+                json.dump(data_dict, json_file, indent=4)
+            
                 
     elif unit == "priogrid_gid":
         df_concat["nga"] = df_concat.index.get_level_values(level=unit).map(get_nga_by_pg)
 
         for nga, group_by_nga in df_concat.groupby(by="nga"):
-            eval_nga_path = save_to / nga
-            eval_nga_path.mkdir(parents=True, exist_ok=True)
-
-            for month_id, group_by_month in group_by_nga.groupby(level="month_id"):
-                df = group_by_month[["crps", "ign", "mis"]]
-                data_dict = group_by_month[["crps", "ign", "mis"]].groupby(level=unit).apply(
-                    lambda x: x.values.flatten().tolist()).to_dict()
-                if data_format in ["json", "all"]:
-                    with open(f"{eval_nga_path}/{month_id}.json", "w") as json_file:
-                        json.dump(data_dict, json_file, indent=4)
-                if data_format in ["parquet", "all"]:
-                    df.to_parquet(f"{eval_nga_path}/{month_id}.parquet")
-
+            if file_format in ["parquet", "all"]:
+                group_by_nga.to_parquet(f"{save_to}/{nga}.parquet")
+            if file_format in ["json", "all"]:
+                data_dict = {}
+                for (month_id, p_id), values in group_by_nga.iterrows():
+                    if p_id not in data_dict:
+                        data_dict[p_id] = {}
+                    data_dict[p_id][month_id] = values.tolist()[:3] # ignore the nga column
+                with open(f"{save_to}/{nga}.json", "w") as json_file:
+                    json.dump(data_dict, json_file, indent=4)
+            
 
 def match_actual_prediction_index(actuals, predictions):
     """
