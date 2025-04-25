@@ -2,6 +2,8 @@
 
 Here, you'll find a small collection of functions that work with prediction-data in the format specified by the [ViEWS Prediction Challenge](https://viewsforecasting.org/prediction-competition-2/).
 
+The replication data, including all participant submissions and benchmark models, is available on our [Dropbox](https://www.dropbox.com/scl/fo/65jppso5vb2h3es0fstkt/APghA0Xj7WttTxKeLaRl9RQ?rlkey=del6d4iea1b6jds9bonmlzqpj&st=nxarwgel&dl=0).
+
 ## Installation
 
 1. Install [mamba](https://github.com/conda-forge/miniforge#mambaforge).
