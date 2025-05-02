@@ -31,10 +31,10 @@ def main():
     parser.add_argument("--feature_folder", type=str, help="Path to the feature folder")
     parser.add_argument("--target", type=str, choices=["pgm", "cm"], help="Target type (pgm or cm)")
     parser.add_argument("--years", type=int, nargs='+', help="List of years")
-    parser.add_argument("--benchmark_name", type=str, help="boot - Bootstrap, last - last historical")
+    parser.add_argument("--benchmark_name", type=str, help="boot - Bootstrap, last - last historical, conflictology - conflictology benchmarking")
     parser.add_argument("--month_lag", type=int, help="Specify the month lag for prediction")
     parser.add_argument("--save_folder_path", type=str, help="Specify a folder path name to save parquet files")
-    
+    parser.add_argument("--num_samples", type=int, help="Specify the number of samples for the benchmark")
     args = parser.parse_args()
     
     feature_folder = Path(args.feature_folder)
@@ -43,14 +43,20 @@ def main():
     benchmark_name = args.benchmark_name
     month_lag = args.month_lag
     save_folder_path = args.save_folder_path
+    num_samples = args.num_samples
     
     for year in years:
         start_date = datetime.date(year = year, month = 1, day = 1)
         if benchmark_name == 'boot':
-            result = global_bootstrap(feature_folder, target, start_date, month_lag, num_samples=1000)
+            result = global_bootstrap(feature_folder, target, start_date, month_lag, num_samples)
         elif benchmark_name == 'last':
-            result = last_observed_poisson(feature_folder, target, start_date, month_lag, num_samples=1000)
+            result = last_observed_poisson(feature_folder, target, start_date, month_lag, num_samples)
+        elif benchmark_name == 'conflictology':
+            result = conflictology(feature_folder, target, start_date, month_lag, num_samples)
+        elif benchmark_name == 'conflictology_general':
+            result = conflictology_general(feature_folder, target, start_date, month_lag, num_samples)
         save_results(result, benchmark_name, target, start_date, save_folder_path)
+
     
     # Do something with the result, e.g., print or save it.
     print(result)
@@ -137,7 +143,7 @@ def global_bootstrap(feature_folder, target, start_date, month_lag=3, num_sample
     
     filter_last_year = (pac.field("month_id") <= window_start_month - month_lag) & (pac.field("month_id") > window_start_month - (12 + month_lag))
     pool = pq.ParquetDataset(feature_folder / target, filters=filter_last_year).read(columns=["ged_sb"]).to_pandas()
-    
+    print('Pool: ',pool)
     dfs = []
     for month_id in range(window_start_month, window_start_month+12):
         df = last_observed_data.copy()
@@ -187,6 +193,137 @@ def last_observed_poisson(feature_folder, target, start_date, month_lag=3, num_s
         dfs.append(df)
     # Concatenate the copies row-wise
     return pd.concat(dfs)
+
+def conflictology(feature_folder, target, start_date, month_lag=3, num_samples=1000):
+    """
+    Conflictological prediction for say year 2022 based on the data from November 2020 through October 2021 
+
+    Args:
+        feature_folder (str): The path to the feature folder containing the data.
+        target (str): The target type, either 'cm' or 'pgm'.
+        start_date (datetime.date): The start date for the benchmark.
+        month_lag (int, optional): The month lag for prediction. Default is 3.
+        num_samples (int, optional): The number of conflictology samples to generate. Default is 1000.
+
+    Returns:
+        pandas.DataFrame: The benchmark results after conflictology benchmarking.
+    """
+    if target == "pgm":
+        unit = "priogrid_gid"
+    elif target == "cm":
+        unit = "country_id"
+    else:
+        raise ValueError('Target must be "pgm" or "cm.')
+
+    window_start_month = date_to_month_id(start_date)
+    last_observed_month_id = (pac.field("month_id") ==
+                              window_start_month - month_lag)
+    last_observed_data = pq.ParquetDataset(
+        feature_folder / target, filters=last_observed_month_id).read(columns=[unit, "ged_sb"]).to_pandas()
+
+    filter_last_year = (pac.field("month_id") <= window_start_month - month_lag) & (
+        pac.field("month_id") > window_start_month - (12 + month_lag))
+    pool = pq.ParquetDataset(
+        feature_folder / target, filters=filter_last_year).read(columns=['month_id', unit, "ged_sb"]).to_pandas()
+    print('Pool: ', pool)
+
+    print('Last observed data: ', last_observed_data)
+
+    df = pool.copy()
+    grouped = df.groupby(unit)['ged_sb'].apply(list).reset_index()
+    df['outcome'] = None
+    outcome_dict = dict(zip(grouped[unit], grouped['ged_sb']))
+    df['outcome'] = df[unit].map(outcome_dict)
+
+    for month_id in range(window_start_month, window_start_month+12):
+        print('Month ID: ', month_id)
+        print(df.loc[df['month_id'] == month_id-month_lag-11, 'month_id'])
+        df.loc[df['month_id'] == month_id-month_lag-11, 'month_id'] = month_id
+        print(df.loc[df['month_id'] == month_id, 'month_id'])
+    ###
+    df = df.drop(columns="ged_sb")
+    df = df.explode("outcome").astype("int32")
+    df['draw'] = df.groupby(['month_id', unit]).cumcount()
+    df.set_index(['month_id', unit, 'draw'], inplace=True)
+    return df
+
+
+def conflictology_general(feature_folder, target, start_date, month_lag=3, num_samples=12):
+    """
+    Conflictological prediction in a more general approach
+
+    Args:
+        feature_folder (str): The path to the feature folder containing the data.
+        target (str): The target type, either 'cm' or 'pgm'.
+        start_date (datetime.date): The start date for the benchmark.
+        month_lag (int, optional): The month lag for prediction. Default is 3.
+        num_samples (int, optional): The number of conflictology samples to generate. Default is 1000.
+
+    Returns:
+        pandas.DataFrame: The benchmark results after conflictology benchmarking.
+    """
+    if target == "pgm":
+        unit = "priogrid_gid"
+    elif target == "cm":
+        unit = "country_id"
+    else:
+        raise ValueError('Target must be "pgm" or "cm.')
+
+    window_start_month = date_to_month_id(start_date)
+    last_observed_month_id = (pac.field("month_id") ==
+                              window_start_month - month_lag)
+    last_observed_data = pq.ParquetDataset(
+        feature_folder / target, filters=last_observed_month_id).read(columns=[unit, "ged_sb"]).to_pandas()
+
+    filter_last_year = (pac.field("month_id") <= window_start_month - month_lag) & (
+        pac.field("month_id") > window_start_month - (num_samples + month_lag))
+    pool = pq.ParquetDataset(
+        feature_folder / target, filters=filter_last_year).read(columns=['month_id', unit, "ged_sb"]).to_pandas()
+    print('Pool: ', pool)
+    # get unique month_ids in column which is not an index
+    
+    
+    
+    print(pool['month_id'].unique())
+
+    print('Last observed data: ', last_observed_data)
+
+    df = pool.copy()
+    grouped = df.groupby(unit)['ged_sb'].apply(list).reset_index()
+    df['outcome'] = None
+    outcome_dict = dict(zip(grouped[unit], grouped['ged_sb']))
+    df['outcome'] = df[unit].map(outcome_dict)
+    if num_samples >= 12:
+        for month_id in range(window_start_month, window_start_month+12):
+            print('Month ID: ', month_id)
+            print(df.loc[df['month_id'] == month_id-month_lag-num_samples+1, 'month_id'])
+            df.loc[df['month_id'] == month_id-month_lag-num_samples+1, 'month_id'] = month_id
+            print(df.loc[df['month_id'] == month_id, 'month_id'])
+    ###
+    # if num_samples < 12 and num_samples > 0:
+    #     filter_current_year = (pac.field("month_id") < 481) & (
+    #         pac.field("month_id") >= 469)
+    #     df = pq.ParquetDataset(
+    #         feature_folder / target, filters=filter_current_year).read(columns=['month_id', unit, "ged_sb"]).to_pandas()
+    #     df['outcome'] = None
+    #     # outcome_dict = dict(zip(grouped[unit], grouped['ged_sb']))
+    #     df['outcome'] = df[unit].map(outcome_dict)
+    #     for month_id in range(window_start_month, window_start_month+12):
+    #         print('Month ID: ', month_id)
+    #         print(df.loc[df['month_id'] == month_id-month_lag-num_samples+1, 'month_id'])
+    #         df.loc[df['month_id'] == month_id-month_lag-num_samples+1, 'month_id'] = month_id
+    #         print(df.loc[df['month_id'] == month_id, 'month_id'])
+    
+    ###
+    
+    df = df.drop(columns="ged_sb")
+    df = df.explode("outcome").astype("int32")
+    df['draw'] = df.groupby(['month_id', unit]).cumcount()
+    df.set_index(['month_id', unit, 'draw'], inplace=True)
+    # keep only rows with month_id from window_start_month to window_start_month+12
+    df = df.loc[df.index.get_level_values('month_id').isin(range(window_start_month, window_start_month+12))]
+    return df
+
 
 if __name__ == "__main__":
     main()
