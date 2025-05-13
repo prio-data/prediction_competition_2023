@@ -52,7 +52,7 @@ def check_values(predictions: xr.Dataset,
             f'Number of samples ({predictions.dims["member"]}) is not 1000. Using scipy.signal.resample to get {expected_samples} samples when calculating Ignorance Score.'
         )
         np.random.seed(284975)
-        arr: npt.ArrayLike = resample(predictions.to_array(), expected_samples, axis=3)
+        arr = resample(predictions.to_array(), expected_samples, axis=3)
         arr = np.where(
             arr < 0, 0, arr
         )  # For the time when resampling happens to go below zero.
@@ -153,13 +153,6 @@ def clean_submission(
 
                 predictions = check_structure(predictions, draw_column, data_column)
                 predictions = check_values(predictions, target, expected_samples)
-
-                if target == "pgm":
-                    predictions.index.names = ["month_id", "priogrid_gid", "draw"]
-                elif target == "cm":
-                    predictions.index.names = ["month_id", "country_id", "draw"]
-                else:
-                    raise ValueError(f'Target {target} must be either "pgm" or "cm".')
 
                 save_path = Path(save_to) / submission.name / target / f"window={window}"
                 save_path.mkdir(exist_ok=True, parents=True)
