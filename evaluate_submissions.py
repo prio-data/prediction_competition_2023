@@ -64,7 +64,7 @@ def evaluate_forecast(
             f'Number of samples ({predictions.dims["member"]}) is not 1000. Using scipy.signal.resample to get {expected_samples} samples when calculating Ignorance Score.'
         )
         np.random.seed(284975)
-        arr: npt.ArrayLike = resample(predictions.to_array(), expected_samples, axis=3)
+        arr = resample(predictions.to_array(), expected_samples, axis=3)
         arr = np.where(
             arr < 0, 0, arr
         )  # For the time when resampling happens to go below zero.
@@ -114,7 +114,6 @@ def evaluate_forecast(
 
     return dfs
         
-
 
 def match_forecast_with_actuals(
     submission, actuals_folder, target: TargetType, window: str
@@ -300,7 +299,7 @@ def main():
         "--windows",
         nargs="+",
         type=str,
-        default=["Y2018", "Y2019", "Y2020", "Y2021", "Y2022", "Y2023", "Y2024"],
+        default=["Y2018", "Y2019", "Y2020", "Y2021", "Y2022", "Y2023", "Y2024", "Y2025"],
         help="windows to evaluate"
     )
     parser.add_argument(
@@ -383,7 +382,7 @@ if __name__ == "__main__":
     # submission = './final_submissions_cleaned'
     # actuals = './actuals'
     # targets = ['pgm']
-    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024']
+    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024', 'Y2025']
     # expected = 1000
     # bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
     # draw_column = 'draw'
