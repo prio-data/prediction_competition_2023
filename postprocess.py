@@ -1,15 +1,6 @@
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
-import logging
-
-
-logger = logging.getLogger('postprocess_logger')
-logger.setLevel(logging.DEBUG)
-file_handler = logging.FileHandler('postprocess.log')
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
 
 
 def separate_df_by_month(df):
@@ -34,7 +25,7 @@ def process_windows(folder1: str, folder2: str=None) -> None:
         if folder.is_dir() and folder.name == "window=Y2024":
             parquet_files = list(folder.glob('*.parquet'))
             if parquet_files:
-                logger.info(f"Processing {parquet_files[0]}")
+                # logger.info(f"Processing {parquet_files[0]}")
                 parquet_file = parquet_files[0]
                 df = pd.read_parquet(parquet_file) 
                 df_2024, df_2025 = separate_df_by_month(df)
