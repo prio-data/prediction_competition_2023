@@ -14,7 +14,7 @@ import time
 
 logger = logging.getLogger('evaluate_logger')
 logger.setLevel(logging.INFO)
-file_handler = logging.FileHandler('evaluate_submission.log', encoding="utf-8")
+file_handler = logging.FileHandler('logs/evaluate_submission.log', encoding="utf-8")
 formatter = logging.Formatter('%(asctime)s %(pathname)s [%(filename)s:%(lineno)d] - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)

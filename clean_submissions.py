@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger('clean_logger')
 logger.setLevel(logging.DEBUG)
-file_handler = logging.FileHandler('clean_submissions.log')
+file_handler = logging.FileHandler('logs/clean_submissions.log')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
