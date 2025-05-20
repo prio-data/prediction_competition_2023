@@ -1,6 +1,7 @@
 from pathlib import Path
-from CompetitionEvaluation import structure_data, calculate_metrics
-from utilities import list_submissions, get_target_data, TargetType, reformat_output
+from evaluation.CompetitionEvaluation import structure_data, calculate_metrics
+from utils.utilities import list_submissions, get_target_data, TargetType, reformat_output
+from utils.set_logger import set_logger
 import os
 import xarray
 import numpy as np
@@ -9,15 +10,10 @@ from scipy.signal import resample
 import argparse
 import pandas as pd
 import pyarrow
-import logging
 import time
+from tqdm import tqdm
 
-logger = logging.getLogger('evaluate_logger')
-logger.setLevel(logging.INFO)
-file_handler = logging.FileHandler('logs/evaluate_submission.log', encoding="utf-8")
-formatter = logging.Formatter('%(asctime)s %(pathname)s [%(filename)s:%(lineno)d] - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
+logger = set_logger('evaluate_logger', 'logs/evaluate_submission.log')
 
 
 def evaluate_forecast(
@@ -43,49 +39,49 @@ def evaluate_forecast(
         actuals, forecast, draw_column_name=draw_column, data_column_name=data_column
     )
 
-    if bool(predictions['outcome'].isnull().any()):
-        logger.warning(
-            "Found NaN values. These are replaced with 0 before further calculations."
-        )
-        predictions["outcome"] = xarray.where(
-            predictions["outcome"].isnull(), 0, predictions["outcome"]
-        )
+    # if bool(predictions['outcome'].isnull().any()):
+    #     logger.warning(
+    #         "Found NaN values. These are replaced with 0 before further calculations."
+    #     )
+    #     predictions["outcome"] = xarray.where(
+    #         predictions["outcome"].isnull(), 0, predictions["outcome"]
+    #     )
 
-    if bool((predictions["outcome"] > 10e9).any()):
-        logger.warning(
-            f"Found predictions larger than earth population. These are censored at 10 billion."
-        )
-        predictions["outcome"] = xarray.where(
-            predictions["outcome"] > 10e9, 10e9, predictions["outcome"]
-        )
+    # if bool((predictions["outcome"] > 10e9).any()):
+    #     logger.warning(
+    #         f"Found predictions larger than earth population. These are censored at 10 billion."
+    #     )
+    #     predictions["outcome"] = xarray.where(
+    #         predictions["outcome"] > 10e9, 10e9, predictions["outcome"]
+    #     )
 
-    if predictions.dims["member"] != expected_samples:
-        logger.warning(
-            f'Number of samples ({predictions.dims["member"]}) is not 1000. Using scipy.signal.resample to get {expected_samples} samples when calculating Ignorance Score.'
-        )
-        np.random.seed(284975)
-        arr = resample(predictions.to_array(), expected_samples, axis=3)
-        arr = np.where(
-            arr < 0, 0, arr
-        )  # For the time when resampling happens to go below zero.
+    # if predictions.sizes["member"] != expected_samples:
+    #     logger.warning(
+    #         f'Number of samples ({predictions.sizes["member"]}) is not 1000. Using scipy.signal.resample to get {expected_samples} samples when calculating Ignorance Score.'
+    #     )
+    #     np.random.seed(284975)
+    #     arr = resample(predictions.to_array(), expected_samples, axis=3)
+    #     arr = np.where(
+    #         arr < 0, 0, arr
+    #     )  # For the time when resampling happens to go below zero.
 
-        new_container = predictions.sel(member=1)
-        new_container = (
-            new_container.expand_dims({"member": range(0, expected_samples)})
-            .to_array()
-            .transpose("variable", "month_id", unit, "member")
-        )
-        predictions: xarray.Dataset = xarray.DataArray(
-            data=arr, coords=new_container.coords
-        ).to_dataset(dim="variable")
+    #     new_container = predictions.sel(member=1)
+    #     new_container = (
+    #         new_container.expand_dims({"member": range(0, expected_samples)})
+    #         .to_array()
+    #         .transpose("variable", "month_id", unit, "member")
+    #     )
+    #     predictions: xarray.Dataset = xarray.DataArray(
+    #         data=arr, coords=new_container.coords
+    #     ).to_dataset(dim="variable")
 
-    if bool((predictions["outcome"] < 0).any()):
-        logger.warning(
-            f"Found negative predictions. These are censored at 0 before calculating Ignorance Score."
-        )
-        predictions["outcome"] = xarray.where(
-            predictions["outcome"] < 0, 0, predictions["outcome"]
-        )
+    # if bool((predictions["outcome"] < 0).any()):
+    #     logger.warning(
+    #         f"Found negative predictions. These are censored at 0 before calculating Ignorance Score."
+    #     )
+    #     predictions["outcome"] = xarray.where(
+    #         predictions["outcome"] < 0, 0, predictions["outcome"]
+    #     )
 
     crps = calculate_metrics(
         observed, predictions, metric="crps", aggregate_over="nothing"
@@ -130,16 +126,16 @@ def match_forecast_with_actuals(
 
 def evaluate_submission(
     submission: str | os.PathLike,
-    acutals: str | os.PathLike,
-    targets: list[TargetType],
-    windows: list[str],
-    expected: int,
-    bins: list[float],
-    draw_column: str,
-    data_column: str,
-    reformat: bool,
-    save_to: str | os.PathLike,
-    file_format: str
+    actuals: str | os.PathLike,
+    targets: list[TargetType]=["cm", "pgm"],
+    windows: list[str]=["Y2018", "Y2019", "Y2020", "Y2021", "Y2022", "Y2023", "Y2024", "Y2025"],
+    expected: int=1000,
+    bins: list[float]=[0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5],
+    draw_column: str="draw",
+    data_column: str="outcome",
+    reformat: bool=False,
+    save_to: str | os.PathLike=None,
+    file_format: str="json"
 ) -> None:
     """Loops over all targets and windows in a submission folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submission}/eval/{target}/window={window}/.
@@ -148,7 +144,7 @@ def evaluate_submission(
     ----------
     submission : str | os.PathLike
         Path to a folder structured like a submission_template
-    acutals : str | os.PathLike
+    actuals : str | os.PathLike
         Path to actuals folder structured like {actuals}/{target}/window={window}/data.parquet
     targets : list[TargetType]
         A list of strings, either ["pgm"] for PRIO-GRID-months, or ["cm"] for country-months, or both.
@@ -180,7 +176,7 @@ def evaluate_submission(
             ):  # test if there are prediction files in the target
                 logger.info(f"Target: {target}, Window: {window}")
                 observed_df, pred_df = match_forecast_with_actuals(
-                    submission, acutals, target, window
+                    submission, actuals, target, window
                 )
                 
                 save_path = submission / "eval" / f"{target}" / f"window={window}"
@@ -207,16 +203,16 @@ def evaluate_submission(
 
 def evaluate_all_submissions(
     submissions: str | os.PathLike,
-    acutals: str | os.PathLike,
-    targets: list[TargetType],
-    windows: list[str],
-    expected: int,
-    bins: list[float],
-    draw_column: str,
-    data_column: str,
-    reformat: bool,
-    save_to: str | os.PathLike,
-    file_format: str
+    actuals: str | os.PathLike,
+    targets: list[TargetType]=["cm", "pgm"],
+    windows: list[str]=["Y2018", "Y2019", "Y2020", "Y2021", "Y2022", "Y2023", "Y2024", "Y2025"],
+    expected: int=1000,
+    bins: list[float]=[0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5],
+    draw_column: str="draw",
+    data_column: str="outcome",
+    reformat: bool=False,
+    save_to: str | os.PathLike=None,
+    file_format: str="json"
 ) -> None:
     """Loops over all submissions in the submissions folder, match them with the correct test dataset, and estimates evaluation metrics.
     Stores evaluation data as .parquet files in {submissions}/{submission_name}/eval/{target}/window={window}/.
@@ -225,7 +221,7 @@ def evaluate_all_submissions(
     ----------
     submissions : str | os.PathLike
         Path to a folder only containing folders structured like a submission_template
-    acutals : str | os.PathLike
+    actuals : str | os.PathLike
         Path to actuals folder structured like {actuals}/{target}/window={window}/data.parquet
     targets : list[TargetType]
         A list of strings, either ["pgm"] for PRIO-GRID-months, or ["cm"] for country-months, or both.
@@ -248,13 +244,13 @@ def evaluate_all_submissions(
     """
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
-    acutals = Path(acutals)
+    actuals = Path(actuals)
 
-    for submission in submissions:
+    for submission in tqdm(submissions, desc="Evaluating submissions"):
         try:
             evaluate_submission(
                 submission,
-                acutals,
+                actuals,
                 targets,
                 windows,
                 expected,
@@ -267,6 +263,7 @@ def evaluate_all_submissions(
             )
         except Exception as e:
             logger.error(f"{str(e)}")
+            raise
 
 
 def main():
@@ -356,7 +353,7 @@ def main():
     args = parser.parse_args()
 
     submissions = Path(args.submissions)
-    acutals = Path(args.actuals)
+    actuals = Path(args.actuals)
     expected = args.expected
     targets = args.targets
     windows = args.windows
@@ -370,7 +367,7 @@ def main():
     start_time = time.time()
 
     evaluate_all_submissions(
-        submissions, acutals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
+        submissions, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
     
     end_time = time.time()
     minutes = (end_time - start_time) / 60
@@ -379,20 +376,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # submission = './final_submissions_cleaned'
-    # actuals = './actuals'
-    # targets = ['pgm']
-    # windows = ['Y2018', 'Y2019', 'Y2020', 'Y2021', 'Y2022', 'Y2023', 'Y2024', 'Y2025']
-    # expected = 1000
-    # bins = [0, 0.5, 2.5, 5.5, 10.5, 25.5, 50.5, 100.5, 250.5, 500.5, 1000.5]
-    # draw_column = 'draw'
-    # data_column = 'outcome'
-    # reformat = True
-    # save_to = './eval_04Dec'
-    # file_format = "json"
-    # start_time = time.time()
-    # # evaluate_submission(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
-    # evaluate_all_submissions(submission, actuals, targets, windows, expected, bins, draw_column, data_column, reformat, save_to, file_format)
-    # end_time = time.time()
-    # minutes = (end_time - start_time) / 60
-    # logger.info(f'Done. Runtime: {minutes:.3f} minutes.\n')
+    

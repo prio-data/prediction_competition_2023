@@ -9,7 +9,7 @@ import datetime
 import yaml
 import json
 
-from pg2nga import pgIds
+from utils.pg2nga import pgIds
 
 TargetType = Literal["cm", "pgm"]
 

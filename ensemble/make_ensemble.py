@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from utilities import TargetType, list_submissions
+from utils.utilities import TargetType, list_submissions
 import time
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -128,9 +128,9 @@ def resampling_ensemble(
     print(f"Total processing time: {total_time:.2f} seconds")
 
 
-if __name__ == "__main__":
-    resampling_ensemble(
-        submissions="./final_submissions_cleaned",
-        save_to="./ensembles",
-        targets=["pgm"],
-    ) 
+# if __name__ == "__main__":
+#     resampling_ensemble(
+#         submissions="./final_submissions_cleaned",
+#         save_to="./ensembles",
+#         targets=["pgm"],
+#     ) 
