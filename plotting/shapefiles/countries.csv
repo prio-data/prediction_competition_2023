@@ -1,0 +1,221 @@
+id,name,gwcode,isoname,isoab,isonum,in_africa,in_middle_east
+1,Guyana,110,Guyana,GUY,328,0,0
+2,Suriname,115,Suriname,SUR,740,0,0
+3,Trinidad and Tobago,52,Trinidad and Tobago,TTO,780,0,0
+4,Venezuela,101,Venezuela,VEN,862,0,0
+5,Samoa,990,Samoa,WSM,882,0,0
+6,Tonga,972,Tonga,TON,776,0,0
+7,Argentina,160,Argentina,ARG,32,0,0
+8,Bolivia,145,Bolivia,BOL,68,0,0
+9,Brazil,140,Brazil,BRA,76,0,0
+10,Chile,155,Chile,CHL,152,0,0
+11,Ecuador,130,Ecuador,ECU,218,0,0
+12,Paraguay,150,Paraguay,PRY,600,0,0
+13,Peru,135,Peru,PER,604,0,0
+14,Uruguay,165,Uruguay,URY,858,0,0
+16,Guatemala,90,Guatemala,GTM,320,0,0
+17,Mexico,70,Mexico,MEX,484,0,0
+18,Barbados,53,Barbados,BRB,52,0,0
+19,Dominica,54,Dominica,DMA,212,0,0
+20,Grenada,55,Grenada,GRD,308,0,0
+21,St. Lucia,56,Saint Lucia,LCA,662,0,0
+22,St. Vincent and the Grenadines,57,Saint Vincent and the Grenadines,VCT,670,0,0
+23,Dominican Republic,42,Dominican Republic,DOM,214,0,0
+24,Haiti,41,Haiti,HTI,332,0,0
+25,Jamaica,51,Jamaica,JAM,388,0,0
+26,Bahamas,31,Bahamas,BHS,44,0,0
+27,Belize,80,Belize,BLZ,84,0,0
+28,Colombia,100,Colombia,COL,170,0,0
+29,Costa Rica,94,Costa Rica,CRI,188,0,0
+30,Cuba,40,Cuba,CUB,192,0,0
+31,El Salvador,92,El Salvador,SLV,222,0,0
+32,Honduras,91,Honduras,HND,340,0,0
+33,Nicaragua,93,Nicaragua,NIC,558,0,0
+34,Panama,95,Panama,PAN,591,0,0
+35,Antigua and Barbuda,58,Antigua and Barbuda,ATG,28,0,0
+36,St. Kitts and Nevis,60,Saint Kitts and Nevis,KNA,659,0,0
+37,Iceland,395,Iceland,ISL,352,0,0
+38,Ireland,205,Ireland,IRL,372,0,0
+39,United Kingdom,200,United Kingdom,GBR,826,0,0
+40,Cape Verde,402,Cape Verde,CPV,132,1,0
+41,Cote d'Ivoire,437,Cote d'Ivoire,CIV,384,1,0
+42,Ghana,452,Ghana,GHA,288,1,0
+43,Liberia,450,Liberia,LBR,430,1,0
+45,Portugal,235,Portugal,PRT,620,0,0
+46,Spain,230,Spain,ESP,724,0,0
+47,Burkina Faso,439,Burkina Faso,BFA,854,1,0
+48,Guinea,438,Guinea,GIN,324,1,0
+49,Guinea-Bissau,404,Guinea-Bissau,GNB,624,1,0
+50,Mali,432,Mali,MLI,466,1,0
+52,Senegal,433,Senegal,SEN,686,1,0
+53,Sierra Leone,451,Sierra Leone,SLE,694,1,0
+54,The Gambia,420,Gambia,GMB,270,1,0
+55,Djibouti,522,Djibouti,DJI,262,1,0
+56,Eritrea,531,Eritrea,ERI,232,1,0
+57,Ethiopia,530,Ethiopia,ETH,231,1,0
+58,Mongolia,712,Mongolia,MNG,496,0,0
+59,Sudan,625,Sudan,SDN,736,1,0
+60,Iraq,645,Iraq,IRQ,368,0,1
+62,Jordan,663,Jordan,JOR,400,0,1
+63,Kazakhstan,705,Kazakhstan,KAZ,398,0,0
+64,Norway,385,Norway,NOR,578,0,0
+65,Russia,365,Russian Federation,RUS,643,0,0
+66,Sweden,380,Sweden,SWE,752,0,0
+67,Algeria,615,Algeria,DZA,12,1,0
+68,Andorra,232,Andorra,AND,20,0,0
+69,Cameroon,471,Cameroon,CMR,120,1,0
+70,Central African Republic,482,Central African Republic,CAF,140,1,0
+72,Monaco,221,Monaco,MCO,492,0,0
+73,Tunisia,616,Tunisia,TUN,788,1,0
+74,Benin,434,Benin,BEN,204,1,0
+76,Equatorial Guinea,411,Equatorial Guinea,GNQ,226,1,0
+77,Kiribati,970,Kiribati,KIR,296,0,0
+78,Niger,436,Niger,NER,562,1,0
+79,Nigeria,475,Nigeria,NGA,566,1,0
+80,Sao Tome and Principe,403,Sao Tome and Principe,STP,678,1,0
+81,Togo,461,Togo,TGO,768,1,0
+82,Albania,339,Albania,ALB,8,0,0
+83,Bosnia and Herzegovina,346,Bosnia and Herzegovina,BIH,70,0,0
+84,Croatia,344,Croatia,HRV,191,0,0
+85,Italy,325,Italy,ITA,380,0,0
+86,Macedonia,343,"Macedonia, the former Yugoslav Republic of",MKD,807,0,0
+87,Malta,338,Malta,MLT,470,0,0
+88,San Marino,331,San Marino,SMR,674,0,0
+89,Bulgaria,355,Bulgaria,BGR,100,0,0
+90,Cyprus,352,Cyprus,CYP,196,0,0
+92,Georgia,372,Georgia,GEO,268,0,0
+93,Greece,350,Greece,GRC,300,0,0
+94,Lebanon,660,Lebanon,LBN,422,0,1
+96,Turkey,640,Turkey,TUR,792,0,1
+97,Austria,305,Austria,AUT,40,0,0
+98,Czech Republic,316,Czech Republic,CZE,203,0,0
+99,Denmark,390,Denmark,DNK,208,0,0
+100,Hungary,310,Hungary,HUN,348,0,0
+101,Poland,290,Poland,POL,616,0,0
+102,Slovakia,317,Slovakia,SVK,703,0,0
+103,Slovenia,349,Slovenia,SVN,705,0,0
+104,Belgium,211,Belgium,BEL,56,0,0
+105,France,220,France,FRA,250,0,0
+106,Liechtenstein,223,Liechtenstein,LIE,438,0,0
+107,Luxembourg,212,Luxembourg,LUX,442,0,0
+108,Netherlands,210,Netherlands,NLD,528,0,0
+109,Switzerland,225,Switzerland,CHE,756,0,0
+110,Belarus,370,Belarus,BLR,112,0,0
+111,Estonia,366,Estonia,EST,233,0,0
+112,Finland,375,Finland,FIN,246,0,0
+113,Latvia,367,Latvia,LVA,428,0,0
+114,Lithuania,368,Lithuania,LTU,440,0,0
+115,Moldova,359,Moldova,MDA,498,0,0
+116,Romania,360,Romania,ROU,642,0,0
+117,Ukraine,369,Ukraine,UKR,804,0,0
+118,Maldives,781,Maldives,MDV,462,0,0
+119,Oman,698,Oman,OMN,512,0,1
+120,Somalia,520,Somalia,SOM,706,1,0
+121,Sri Lanka,780,Sri Lanka,LKA,144,0,0
+122,Turkmenistan,701,Turkmenistan,TKM,795,0,0
+123,Uzbekistan,704,Uzbekistan,UZB,860,0,0
+124,Yemen,678,Yemen,YEM,887,0,1
+125,Armenia,371,Armenia,ARM,51,0,0
+126,Azerbaijan,373,Azerbaijan,AZE,31,0,0
+127,Bahrain,692,Bahrain,BHR,48,0,1
+128,Iran,630,"Iran, Islamic Republic of",IRN,364,0,0
+129,Kuwait,690,Kuwait,KWT,414,0,1
+130,Qatar,694,Qatar,QAT,634,0,1
+131,Saudi Arabia,670,Saudi Arabia,SAU,682,0,1
+132,United Arab Emirates,696,United Arab Emirates,ARE,784,0,1
+133,Afghanistan,700,Afghanistan,AFG,4,0,0
+134,Kyrgyzstan,703,Kyrgyzstan,KGZ,417,0,0
+135,Nepal,790,Nepal,NPL,524,0,0
+136,Pakistan,770,Pakistan,PAK,586,0,0
+137,Tajikistan,702,Tajikistan,TJK,762,0,0
+138,Bangladesh,771,Bangladesh,BGD,50,0,0
+139,Bhutan,760,Bhutan,BTN,64,0,0
+140,Brunei,835,Brunei Darussalam,BRN,96,0,0
+142,Japan,740,Japan,JPN,392,0,0
+143,North Korea,731,"Korea, Democratic People's Republic of",PRK,408,0,0
+144,Palau,986,Palau,PLW,585,0,0
+145,Philippines,840,Philippines,PHL,608,0,0
+146,South Korea,732,"Korea, Republic of",KOR,410,0,0
+147,Cambodia,811,Cambodia,KHM,116,0,0
+148,Laos,812,Lao People's Democratic Republic,LAO,418,0,0
+149,Myanmar,775,Myanmar,MMR,104,0,0
+150,Thailand,800,Thailand,THA,764,0,0
+151,Vietnam,816,Viet Nam,VNM,704,0,0
+152,Marshall Is.,983,Marshall Islands,MHL,584,0,0
+153,Micronesia,987,"Micronesia, Federated States of",FSM,583,0,0
+154,Botswana,571,Botswana,BWA,72,1,0
+155,Burundi,516,Burundi,BDI,108,1,0
+156,Rwanda,517,Rwanda,RWA,646,1,0
+157,Zambia,551,Zambia,ZMB,894,1,0
+158,Zimbabwe,552,Zimbabwe,ZWE,716,1,0
+159,Comoros,581,Comoros,COM,174,1,0
+160,Lesotho,570,Lesotho,LSO,426,1,0
+161,Malawi,553,Malawi,MWI,454,1,0
+162,Mozambique,541,Mozambique,MOZ,508,1,0
+163,South Africa,560,South Africa,ZAF,710,1,0
+164,Swaziland,572,Swaziland,SWZ,748,1,0
+165,Angola,540,Angola,AGO,24,1,0
+166,Congo,484,Congo,COG,178,1,0
+167,"Congo, DRC",490,"Congo, Democratic Republic of the",COD,180,1,0
+168,Fiji,950,Fiji,FJI,242,0,0
+169,Gabon,481,Gabon,GAB,266,1,0
+170,Namibia,565,Namibia,NAM,516,1,0
+171,New Zealand,920,New Zealand,NZL,554,0,0
+172,Madagascar,580,Madagascar,MDG,450,1,0
+173,Mauritius,590,Mauritius,MUS,480,1,0
+174,Seychelles,591,Seychelles,SYC,690,1,0
+176,Timor Leste,860,Timor-Leste,TLS,626,0,0
+177,Australia,900,Australia,AUS,36,0,0
+178,Nauru,971,Nauru,NRU,520,0,0
+179,Papua New Guinea,910,Papua New Guinea,PNG,598,0,0
+180,Solomon Is.,940,Solomon Islands,SLB,90,0,0
+181,Tuvalu,973,Tuvalu,TUV,798,0,0
+182,Vanuatu,935,Vanuatu,VUT,548,0,0
+183,Canada,20,Canada,CAN,124,0,0
+184,Germany,260,Germany,DEU,276,0,0
+185,Germany Federal Republic,260,"Germany, Federal Republic of",DEU,280,0,0
+186,Germany Democratic Republic,265,German Democratic Republic,DDR,278,0,0
+187,Czechoslovakia,315,Czechoslovakia,CSK,200,0,0
+188,Yugoslavia,345,"Yugoslavia, Socialist Federal Republic of",YUG,890,0,0
+189,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+191,Ethiopia,530,Ethiopia,ETH,230,1,0
+192,South Africa,560,South Africa,ZAF,710,1,0
+196,Yemen Arab Republic,678,Yemen,YEM,886,0,1
+197,Yemen People's Republic,680,Democratic Yemen,YMD,720,0,1
+198,Taiwan,713,"Taiwan, Province of China",TWN,158,0,0
+199,China,710,China,CHN,156,0,0
+205,Malaysia,820,Malaysia,MYS,458,0,0
+206,Singapore,830,Singapore,SGP,702,0,0
+208,Indonesia,850,Indonesia,IDN,360,0,0
+209,Indonesia,850,Indonesia,IDN,360,0,0
+213,Libya,620,Libyan Arab Jamahiriya,LBY,434,1,0
+214,Chad,483,Chad,TCD,148,1,0
+218,Israel,666,Israel,ISR,376,0,1
+220,Syria,652,Syrian Arab Republic,SYR,760,0,1
+222,Egypt,651,Egypt,EGY,818,1,0
+223,India,750,India,IND,356,0,0
+227,Serbia and Montenegro,345,Serbia and Montenegro,SCG,891,0,0
+230,Serbia,340,Serbia,SRB,688,0,0
+231,Montenegro,341,Montenegro,MNE,499,0,0
+232,Kosovo,347,,,0,0,0
+233,Serbia,340,Serbia,SRB,688,0,0
+234,United States,2,United States,USA,840,0,0
+235,Uganda,500,Uganda,UGA,800,1,0
+236,Tanzania,510,"Tanzania, United Republic of",TZA,834,1,0
+237,Kenya,501,Kenya,KEN,404,1,0
+239,Saudi Arabia,670,Saudi Arabia,SAU,682,0,1
+240,Yemen,678,Yemen,YEM,887,0,1
+242,Tanzania,510,"Tanzania, United Republic of",TZA,834,1,0
+243,Morocco,600,Morocco,MAR,504,1,0
+244,Mauritania,435,Mauritania,MRT,478,1,0
+245,Sudan,625,Sudan,SDN,729,1,0
+246,South Sudan,626,South Sudan,SSD,728,1,0
+247,Yugoslavia,345,"Yugoslavia, Socialist Federal Republic of",YUG,890,0,0
+248,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+249,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+250,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+251,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+252,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+253,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+254,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
+255,USSR,365,Union of Soviet Socialist Republics,SUN,810,0,0
