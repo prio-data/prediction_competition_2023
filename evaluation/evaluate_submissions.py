@@ -344,7 +344,7 @@ def main():
     parser.add_argument(
         "-ff",
         "--file_format",
-        type="str",
+        type=str,
         default="json",
         choices=["json", "parquet", "all"],
         help="File format for the output. Default is json."
