@@ -1,9 +1,10 @@
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
-from utils.set_logger import set_logger
 import shutil
+import argparse
 from utils.utilities import list_submissions
+from utils.set_logger import set_logger
 
 logger = set_logger('process_logger', 'logs/process_windows.log')
 
@@ -32,11 +33,14 @@ def process_windows(submissions: Path | str, save_to: Path | str=None) -> None:
         logger.info(f"No target folder provided, saving to {save_to}")
     else:
         save_to = Path(save_to)
+        save_to.mkdir(parents=True, exist_ok=True)  
 
     for submission in list_submissions(submissions):
+        submission_dir = save_to / submission.name
+        submission_dir.mkdir(parents=True, exist_ok=True) 
         for item in submission.iterdir():
             if item.is_file():
-                shutil.copy2(item, save_to / item.name)
+                shutil.copy2(item, submission_dir / item.name)
 
     for folder in tqdm(submissions.rglob('*'), desc='Processing', total=len(list(submissions.rglob('*')))):
         if folder.is_dir():
@@ -63,3 +67,12 @@ def process_windows(submissions: Path | str, save_to: Path | str=None) -> None:
                 
                 for parquet_file in folder.glob('*.parquet'):
                     shutil.copy2(parquet_file, target_folder / parquet_file.name)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Process windows in the submission folder.')
+    parser.add_argument('-s', metavar='submissions', type=str, required=True, help='Path to the source folder')
+    parser.add_argument('-st', metavar='save_to', type=str, default=None, help='Path to the target folder. If not provided, the source folder will be used.')
+    args = parser.parse_args()
+
+    process_windows(args.s, args.st)
