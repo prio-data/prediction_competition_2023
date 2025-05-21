@@ -297,38 +297,44 @@ When evaluation metrics have been estimated, they are stored in an "eval" folder
 ### Command-line tools
 In addition to using the functions in a Python environment, some core functionality is available as command-line tools.
 
+To clean the submissions to make sure they are compliant with the correct format:
+
+```console
+python processing/clean_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -st /path/to/save
+```
+
 To estimate Poisson samples from point-predictions:
 
 ```console
-python point-to-samples.py -s /path/to/submission/template/folder/with/point/predictions
+python processing/point-to-samples.py -s /path/to/submission/template/folder/with/point/predictions
 ```
 
 To test compliance of submission with submission standards (will write to a test_compliance.log file in current working folder):
 
 ```console
-python test_compliance.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
+python evaluation/test_compliance.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
 ```
 
 To estimate evaluation metrics (will also write a evaluate_submission.log in current working folder):
 
 ```console
-python evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
+python evaluation/evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
 ```
 
 To collate evaluation metrics:
 
 ```console
-python collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template
+python evaluation/collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template
 ```
 This will result in four .parquet-files in the "path_to_submissions" folder with aggregated evaluation metrics per month and per unit at both the pgm and cm level. 
 
 You can also get tables of global metrics in LaTeX, HTML, and Excel (this will also do the above step first):
 
 ```console
-python collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template -t /path/to/folder/you/want/tables/in
+python evaluation/collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template -t /path/to/folder/you/want/tables/in
 ```
 
-## Monthly update
+## Monthly update for the dashboard
 ### 1. Update the actuals
 Make sure the actuals are up-to-date. If you don't know where to get them, ask Jim.
 
@@ -336,7 +342,7 @@ Make sure the actuals are up-to-date. If you don't know where to get them, ask J
 The dashboard requires a different structure than the one we use for evaluation. To get the data in the right format, run the following command:
 
 ```console
-python evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals -r -st path/to/save
+python evaluation/evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals -r -st path/to/save
 ```
 The new evaluation folder looks like this:
 ```bash
@@ -351,12 +357,4 @@ evaluation_folder_name
     └── team_idenfitier_4
         ├── NGA_1.json
         └── NGA_2.json
-```
-
-### Optional: Clean the submissions
-Before running the evaluation, you can also clean the submissions to make sure they are compliant with the correct format. The cleaned data will be saved to another folder to make sure the original data is not overwritten.
-This is done by running the following command:
-
-```console
-clean_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -st /path/to/save
 ```
