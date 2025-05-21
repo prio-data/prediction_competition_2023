@@ -86,12 +86,19 @@ def prepare_geo_forecast_data(submission: Path, target: str, window: str | int, 
     outcome_file = list(outcome_path.glob("**/*.parquet"))[0]
     
     outcome_df = pq.read_table(outcome_file).to_pandas()
-    outcome_df = outcome_df.groupby(["month_id", unit])["outcome"].median().reset_index()
+
+    if month:
+        outcome_df = outcome_df.groupby(["month_id", unit])["outcome"].median().reset_index()
+
+        if month not in outcome_df.month_id.unique():
+            raise ValueError(f"Month {month} not found.")
+        
+        df = pd.merge(outcome_df, map, left_on=unit, right_on=unit).query(f"month_id == {month}")
     
-    if month not in outcome_df.month_id.unique():
-        raise ValueError(f"Month {month} not found.")
+    else:
+        outcome_df = outcome_df.groupby(["month_id", unit])["outcome"].median().groupby(by=unit).sum().reset_index()
+        df = pd.merge(outcome_df, map, left_on=unit, right_on=unit)
     
-    df = pd.merge(outcome_df, map, left_on=unit, right_on=unit).query(f"month_id == {month}")
     return gpd.GeoDataFrame(df), outcome_df, team, model
 
 
@@ -129,12 +136,23 @@ def choropleth_map_forecast(
     submission: Path | str,
     target: str,
     window: str,
-    month: str | int,
+    month: Optional[str | int] = None,
     cmap: str = "viridis",
     metric_ticks: Optional[List[int]] = None,
     views_logo: bool = True,
-    info_box_placement: List[float] = [0.66, 0.08, 0.1, 0.1],
 ) -> None:
+    """
+    Plot a choropleth map of the forecasted fatalities.
+
+    Args:
+        submission: Path to the submission directory
+        target: Target variable, either "cm" or "pgm"
+        window: Window size 
+        month: Month to plot, if None, the sum of all months will be plotted
+        cmap: Colormap to use
+        metric_ticks: Ticks for the colorbar
+        views_logo: Whether to add the Views logo to the plot
+    """
     submission = Path(submission)
     if window.startswith("Y"):
         window = int(window.replace("Y", ""))
@@ -199,6 +217,19 @@ def choropleth_map_evaluation(
     views_logo: bool = True,
     info_box_placement: List[float] = [0.66, 0.08, 0.1, 0.1],
 ) -> None:
+    """
+    Plot a choropleth map of the evaluation metric.
+
+    Args:
+        submission: Path to the submission directory
+        metric: Metric to plot
+        target: Target variable, either "cm" or "pgm"
+        window: Window size 
+        cmap: Colormap to use
+        metric_ticks: Ticks for the colorbar
+        views_logo: Whether to add the Views logo to the plot
+        info_box_placement: Placement of the info box
+    """
     submission = Path(submission)
     if window.startswith("Y"):
         window = int(window.replace("Y", ""))
