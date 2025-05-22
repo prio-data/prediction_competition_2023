@@ -207,7 +207,7 @@ Read data (e.g., predictions or actuals, or any data structured as folder/{targe
 
 ```python
 from pathlib import Path
-from utilities import views_month_id_to_year, views_month_id_to_month, views_month_id_to_date, get_target_data, list_submissions
+from utils/utilities import views_month_id_to_year, views_month_id_to_month, views_month_id_to_date, get_target_data, list_submissions
 
 submissions = Path("path/to/submissions/folder")
 
