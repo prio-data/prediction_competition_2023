@@ -207,7 +207,7 @@ Read data (e.g., predictions or actuals, or any data structured as folder/{targe
 
 ```python
 from pathlib import Path
-from utils/utilities import views_month_id_to_year, views_month_id_to_month, views_month_id_to_date, get_target_data, list_submissions
+from utils.utilities import views_month_id_to_year, views_month_id_to_month, views_month_id_to_date, get_target_data, list_submissions
 
 submissions = Path("path/to/submissions/folder")
 
@@ -252,6 +252,49 @@ evaluation_table(submissions, target = "cm", groupby = ["month", "window"], aggr
 
 # You can write tables to LaTeX, HTML, and Excel format.
 evaluation_table(submissions, target = "cm", groupby = ["month", "window"], aggregate_submissions=True, save_to=tables)
+```
+
+### Suggested workflow
+
+If you are unsure whether your data fully comply with the requirements, we recommend following the workflow below. This process will help ensure your data are properly formatted and ready for evaluation and ensemble creation:
+
+1. **Clean Submissions**: Standardize and validate your raw submissions to ensure they meet the required format. **Remember all the folder should be like submission_template.**
+2. **Save to `data/cleaned`**: Store the cleaned submissions in the `data/cleaned` directory.
+```console
+python -m processing.clean_submissions -s data/raw/submissions -st data/cleaned/submissions
+```
+3. **Process Windows**: Transform the **cleaned data** into the required prediction windows for evaluation (this is because window 2025 was not available before).
+4. **Save to `data/processed`**: Store the processed data in the `data/processed` directory.
+```console
+python -m processing.process_windows -s data/cleaned/submissions -st data/processed/submissions
+```
+5. **Evaluate Submissions**: Run evaluation scripts on the **processed data** to generate performance metrics for each submission.
+```console
+python -m evaluation.evaluate_submissions -s data/processed/submissions -a data/raw/actuals
+```
+6. **Make Ensembles**: Combine individual model predictions into ensemble forecasts using the **processed** and evaluated data.
+7. **Save to `data/ensembles`**: Store the ensembles in the `data/ensembles` directory.
+```console
+python -m ensemble.make_ensemble -s data/processed/submissions -st data/ensembles/ensemble
+```
+8. **End**: The workflow is complete, and your results are ready for further analysis or reporting.
+
+In this case, the data folder is organized as:
+
+```bash
+data/
+├── raw/
+│   ├── submissions/
+│   └── actuals/
+├── cleaned/
+│   └── submissions/
+├── processed/
+│   └── submissions/
+└── ensembles/
+    └── ensemble/
+        ├── weighted/
+        ├── selected/
+        └── unweighted/
 ```
 
 ### Evaluation data
@@ -300,38 +343,38 @@ In addition to using the functions in a Python environment, some core functional
 To clean the submissions to make sure they are compliant with the correct format:
 
 ```console
-python processing/clean_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -st /path/to/save
+python -m processing.clean_submissions -s /path/to/folder/containing/only/folders/like/submission_template -st /path/to/save
 ```
 
 To estimate Poisson samples from point-predictions:
 
 ```console
-python processing/point-to-samples.py -s /path/to/submission/template/folder/with/point/predictions
+python -m processing.point-to-samples -s /path/to/submission/template/folder/with/point/predictions
 ```
 
 To test compliance of submission with submission standards (will write to a test_compliance.log file in current working folder):
 
 ```console
-python evaluation/test_compliance.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
+python -m evaluation.test_compliance -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
 ```
 
 To estimate evaluation metrics (will also write a evaluate_submission.log in current working folder):
 
 ```console
-python evaluation/evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
+python -m evaluation.evaluate_submissions -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals
 ```
 
 To collate evaluation metrics:
 
 ```console
-python evaluation/collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template
+python -m evaluation.collect_performance -s /path/to/folder/containing/only/folders/like/submission_template
 ```
 This will result in four .parquet-files in the "path_to_submissions" folder with aggregated evaluation metrics per month and per unit at both the pgm and cm level. 
 
 You can also get tables of global metrics in LaTeX, HTML, and Excel (this will also do the above step first):
 
 ```console
-python evaluation/collect_performance.py -s /path/to/folder/containing/only/folders/like/submission_template -t /path/to/folder/you/want/tables/in
+python -m evaluation.collect_performance -s /path/to/folder/containing/only/folders/like/submission_template -t /path/to/folder/you/want/tables/in
 ```
 
 ## Monthly update for the dashboard
@@ -342,7 +385,7 @@ Make sure the actuals are up-to-date. If you don't know where to get them, ask J
 The dashboard requires a different structure than the one we use for evaluation. To get the data in the right format, run the following command:
 
 ```console
-python evaluation/evaluate_submissions.py -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals -r -st path/to/save
+python -m evaluation.evaluate_submissions -s /path/to/folder/containing/only/folders/like/submission_template -a /path/to/actuals -r -st path/to/save
 ```
 The new evaluation folder looks like this:
 ```bash
