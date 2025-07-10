@@ -210,7 +210,7 @@ def clean_all_submissions(
             logger.error(f"{str(e)}")
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Method for evaluation of submissions to the ViEWS Prediction Challenge",
         epilog="Example usage: python evaluate_submissions.py -s ./submissions -st ./submissions_cleaned -e 100",
@@ -278,3 +278,5 @@ if __name__ == "__main__":
         submissions, save_to, targets, windows, expected_samples, draw_column, data_column)
 
 
+if __name__ == "__main__":
+    main()
