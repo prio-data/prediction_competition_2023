@@ -31,11 +31,9 @@ python -m ensemble.make_ensemble -s <submissions_folder> -st <save_to_folder> [o
 
 ```bash
 python -m ensemble.make_ensemble \
-    -s /data/cleaned/final_submissions_cleaned_May21 \
+    -s /data/processed/final_submissions_cleaned_May21 \
     -st /data/ensembles/ensemble_Jul10 \
     -t cm pgm \
-    -w Y2023 Y2024 \
-    -es 1000 \
     -we unweighted weighted selected
 ```
 
