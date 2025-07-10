@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -9,44 +10,118 @@ from tqdm import tqdm
 import argparse
 from utils.utilities import TargetType, list_submissions
 from utils.set_logger import set_logger
+import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor
 
 logger = set_logger("ensemble_logger", "logs/ensemble.log")
 
 
-def process_month_id(month, id, samples_dict, loa, expected_samples, weights):
+def sample_unweighted(model_samples, expected_samples, month, id):
+    """
+    Sample by drawing from each model equally.
+    """
+    model_arrays = [
+        model_samples[m][(month, id)]
+        for m in model_samples if (month, id) in model_samples[m]
+    ]
+    num_models = len(model_arrays)
+    if num_models == 0:
+        raise ValueError(f"No models found for month={month}, id={id}")
+    draws = np.full(num_models, expected_samples // num_models, dtype=int)
+    draws[:expected_samples % num_models] += 1
+    all_samples = np.empty(expected_samples, dtype=np.float32)
+    start = 0
+    np.random.seed(42)
+    for arr, n_draw in zip(model_arrays, draws):
+        all_samples[start:start+n_draw] = np.random.choice(arr, size=n_draw, replace=True)
+        start += n_draw
+    return all_samples
+
+
+def sample_weighted(model_samples, expected_samples, month, id, crps_dict):
+    """
+    Sample by weighting the models by the inverse of their CRPS.
+    1. Compute the average CRPS_m for all the test years 2019-2024 for each model m
+    2. Draw from each model proportional to 1/CRPS_m for each 
+    """
+    model_names = [m for m in model_samples if (month, id) in model_samples[m]]
+    crps_values = np.array([crps_dict[m] for m in model_names])
+    inv_crps = 1.0 / crps_values
+    weights = inv_crps / inv_crps.sum()
+
+    # Draw from each model proportional to 1/CRPS_m for each 
+    raw_draws = weights * expected_samples
+    draws = np.floor(raw_draws).astype(int) # Round down to the nearest integer
+    remainder = expected_samples - draws.sum()
+    fractional = raw_draws - draws 
+    for i in np.argsort(fractional)[-remainder:]:
+        draws[i] += 1 
+
+    all_samples = np.empty(expected_samples, dtype=np.float32)
+    start = 0
+    np.random.seed(42)
+    for m, n_draw in zip(model_names, draws):
+        arr = model_samples[m][(month, id)]
+        all_samples[start:start+n_draw] = np.random.choice(arr, size=n_draw, replace=True)
+        start += n_draw
+    return all_samples
+
+
+def sample_selected(model_samples, expected_samples, month, id, metrics_dict):
+    """
+    Sample from the top models for a given month and id.
+    1. Compute the average CRPS, MIS, IGN scores for all the test years 2019-24. 
+    2. Rank all the models for each of these metrics. Include all models that is in the top 3 of any of these 3 lists. This will result in 3-9 models. 
+    3. Draw samples from these models so that we have 1,000 in total - no weighting for these draws within this set of top-performing models.
+    """
+    top_models = set()
+    for metric in ['crps', 'mis', 'ign']:
+        sorted_models = sorted(metrics_dict[metric], key=metrics_dict[metric].get)
+        top_models.update(sorted_models[:3])
+    top_models = [m for m in top_models if (month, id) in model_samples[m]]
+    num_models = len(top_models)
+    if num_models == 0:
+        raise ValueError(f"No top models found for month={month}, id={id}")
+
+    draws = np.full(num_models, expected_samples // num_models, dtype=int)
+    draws[:expected_samples % num_models] += 1
+
+    all_samples = np.empty(expected_samples, dtype=np.float32)
+    start = 0
+    np.random.seed(42)
+    for m, n_draw in zip(top_models, draws):
+        arr = model_samples[m][(month, id)]
+        all_samples[start:start+n_draw] = np.random.choice(arr, size=n_draw, replace=True)
+        start += n_draw
+    return all_samples
+
+
+def process_month_id(month, id, samples_dict, loa, expected_samples, weights, metrics_dict):
+    """
+    Process a month and id to make the ensemble.
+
+    Args:
+        month: The month to make an ensemble for.
+        id: The id to make an ensemble for.
+        samples_dict: A dictionary of samples for each model. The keys are the model names and the values are dictionaries of samples for each month and id.
+        loa: The level of analysis.
+        expected_samples: The number of samples to draw from the ensemble.
+        weights: The weights to use for the ensemble. Can be "unweighted", "weighted", or "selected".
+        metrics_dict: Dict of metric -> {model_name: value} 
+    """
     try:
-        all_samples = np.zeros(expected_samples, dtype=np.float32)
-
-        if weights is None:
-            samples = np.concatenate(
-                [
-                    model_samples[(month, id)]
-                    for model_samples in samples_dict.values()
-                    if (month, id) in model_samples
-                ]
-            )
-            all_samples[:] = np.random.choice(
-                samples, size=expected_samples, replace=True
-            )
+        if weights == "unweighted":
+            all_samples = sample_unweighted(samples_dict, expected_samples, month, id)
+        elif weights == "weighted":
+            if metrics_dict is None:
+                raise ValueError("metrics_dict must be provided for weighted ensemble")
+            all_samples = sample_weighted(samples_dict, expected_samples, month, id, metrics_dict["crps"])
+        elif weights == "selected":
+            if metrics_dict is None:
+                raise ValueError("metrics_dict must be provided for selected ensemble")
+            all_samples = sample_selected(samples_dict, expected_samples, month, id, metrics_dict)
         else:
-            model_weights = weights.loc[(month, id)].values
-            samples = []
-            sample_counts = []
-
-            for model_samples in samples_dict.values():
-                if (month, id) in model_samples:
-                    samples.append(model_samples[(month, id)])
-                    sample_counts.append(len(model_samples[(month, id)]))
-
-            if samples:
-                sample_weights = np.repeat(model_weights, sample_counts)
-                sample_weights = sample_weights / sample_weights.sum()
-
-                samples = np.concatenate(samples)
-
-                all_samples[:] = np.random.choice(
-                    samples, size=expected_samples, replace=True, p=sample_weights
-                )
+            raise ValueError(f"Invalid weight type: {weights}")
 
         member_indices = pd.MultiIndex.from_product(
             [[month], [id], range(expected_samples)], names=["month_id", loa, "member"]
@@ -55,21 +130,72 @@ def process_month_id(month, id, samples_dict, loa, expected_samples, weights):
 
         return month_df
     except Exception as e:
-        logger.error(f"Error processing month={month}, id={id}: {str(e)}")
+        logger.error(f"Error processing month={month}, id={id}, loa={loa}, weights={weights}: {str(e)}")
         raise
 
 
-def process_window(target, window, submissions, save_to, expected_samples, weights):
-    """
-    Process a window of to make the ensemble.
+def process_single_file(file_path, level, submission):
+    table = pq.read_table(file_path)
+    df = table.to_pandas()
+    model_samples = {}
+    for (month, id), group in df.groupby(level=["month_id", level]):
+        model_samples[(month, id)] = group["outcome"].values
+    return submission.name, model_samples
 
-    Args:
-        target: The target to make an ensemble for.
-        window: The window to make an ensemble for.
-        submissions: The path to the submissions folder.
-        save_to: The path to save the ensemble.
-        expected_samples: The number of samples to draw from the ensemble.
-        weights: The weights to use for the ensemble.
+
+def read_data(target, window, submissions):
+    """
+    Read and parse all model files for a given (target, window) ONCE.
+    Returns samples_dict and month_level_pairs.
+    """
+    if target == "cm":
+        level = "country_id"
+    elif target == "pgm":
+        level = "priogrid_gid"
+    else:
+        raise ValueError(f"Invalid level of analysis: {target}")
+
+    file_paths = [
+        (
+            submission
+            / target
+            / f"window={window}"
+            / f"{submission.name}_{target}_{window}.parquet",
+            level,
+            submission,
+        )
+        for submission in submissions
+        if any((submission / target).glob("**/*.parquet"))
+    ]
+
+    logger.info(f"Reading {target} {window} with {len(file_paths)} models")
+    samples_dict = {}
+    month_level_pairs = None
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(process_single_file, file_path, level, submission)
+                   for file_path, level, submission in file_paths]
+        for future in futures:
+            model_name, model_samples = future.result()
+            samples_dict[model_name] = model_samples
+            if month_level_pairs is None and model_samples:
+                month_level_pairs = list(model_samples.keys())
+
+    return samples_dict, month_level_pairs
+
+
+def process_data(
+    target: TargetType,
+    window: str,
+    samples_dict: dict,
+    month_level_pairs: list,
+    save_to: Path,
+    expected_samples: int,
+    weight: str,
+    metrics_dict: dict,
+    ):
+    """
+    Process a window of to make the ensemble for a single weight type, using pre-built samples_dict and month_level_pairs.
     """
     try:
         if target == "cm":
@@ -79,42 +205,16 @@ def process_window(target, window, submissions, save_to, expected_samples, weigh
         else:
             raise ValueError(f"Invalid level of analysis: {target}")
 
-        file_paths = [
-            (
-                submission
-                / target
-                / f"window={window}"
-                / f"{submission.name}_{target}_{window}.parquet",
-                level,
-                submission,
-            )
-            for submission in submissions
-            if any((submission / target).glob("**/*.parquet"))
-        ]
+        logger.info(f"Processing {target} {window} with {len(samples_dict)} models for weight {weight}")
 
-        logger.info(f"Reading {target} {window} with {len(file_paths)} models")
-        samples_dict = {}
-        month_level_pairs = None
-
-        for file_path, level, submission in file_paths:
-            table = pq.read_table(file_path)
-            df = table.to_pandas()
-
-            model_samples = {}
-            for (month, id), group in df.groupby(level=["month_id", level]):
-                model_samples[(month, id)] = group["outcome"].values
-
-            samples_dict[submission.name] = model_samples
-            if month_level_pairs is None:
-                month_level_pairs = df.index.droplevel("member").unique()
-
-        logger.info(f"Processing {target} {window} with {len(samples_dict)} models")
-        save_path = save_to / target / f"window={window}" / "ensemble.parquet"
+        save_path = (
+            save_to / f"{weight}" / target / f"window={window}" / f"ensemble_{weight}.parquet"
+        )
 
         all_dfs = []
         for month, id in month_level_pairs:
             month_df = process_month_id(
-                month, id, samples_dict, level, expected_samples, weights
+                month, id, samples_dict, level, expected_samples, weight, metrics_dict
             )
             all_dfs.append(month_df)
 
@@ -126,8 +226,44 @@ def process_window(target, window, submissions, save_to, expected_samples, weigh
     except Exception as e:
         logger.error(f"Error processing {target} {window}: {str(e)}")
         import traceback
-
         traceback.print_exc()
+
+
+def create_metrics_dict(submissions: list[Path], target: TargetType):
+    """
+    Create a dictionary of metrics for each model.
+    """
+    metrics_dict = {}
+    for metric in ["crps", "mis", "ign"]:
+        metrics_dict[metric] = {}
+
+        for submission in submissions:
+            base = submission / "eval" / f"{target}"
+            pattern = f"*/metric={metric}/{metric}.parquet"
+            file_paths = list(base.glob(pattern))
+
+            if len(file_paths) != 0:
+                values = []
+                for file_path in file_paths:
+                    table = pq.read_table(file_path)
+                    df = table.to_pandas()
+                    values.append(df["value"].mean())
+                metrics_dict[metric][submission.name] = np.mean(values)
+    return metrics_dict
+   
+
+def load_metrics_dict(submissions: list[Path], target: TargetType, weight: str, save_to: Path):
+    metrics_dict = None
+    if weight == "weighted" or weight == "selected":
+        try:
+            with open(save_to / f"metrics_dict_{target}.json", "r") as f:
+                metrics_dict = json.load(f)
+        except FileNotFoundError:
+            logger.warning(f"Metrics file not found for {weight} {target} ensemble. Creating it now.")
+            metrics_dict = create_metrics_dict(submissions, target)
+            with open(save_to / f"metrics_dict_{target}.json", "w") as f:
+                json.dump(metrics_dict, f)
+    return metrics_dict
 
 
 def make_ensemble(
@@ -145,18 +281,18 @@ def make_ensemble(
         "Y2025",
     ],
     expected_samples: int = 1000,
-    weights: pd.DataFrame = None,
-):
+    weights: list[str] = ["unweighted", "weighted", "selected"],
+    ):
     """
     Make an ensemble of the submissions.
 
     Args:
         submissions: The path to the submissions folder.
         save_to: The path to save the ensemble.
-        targets: The targets to make an ensemble for.
+        targets: The level of analysis.
         windows: The windows to make an ensemble for.
         expected_samples: The number of samples to draw from the ensemble.
-        weights: The weights to use for the ensemble.
+        weights: The weights to use for the ensemble. Can be "unweighted", "weighted", or "selected".
     """
     submissions = Path(submissions)
     save_to = Path(save_to)
@@ -164,24 +300,28 @@ def make_ensemble(
 
     start_time = time.time()
 
-    total_iterations = len(targets) * len(windows)
-    with tqdm(total=total_iterations, desc="Processing ensemble") as pbar:
-        for target in targets:
+    for target in targets:
+        with tqdm(total=len(windows)*len(weights), desc=f"Processing {target}") as pbar:
             for window in windows:
-                window_start = time.time()
-                (save_to / target / f"window={window}").mkdir(parents=True, exist_ok=True)
-                process_window(
-                    target, window, submissions, save_to, expected_samples, weights
-                )
-                window_time = time.time() - window_start
-                logger.info(f"Completed {target} {window} in {window_time:.2f} seconds")
-                pbar.update(1)
-
+                samples_dict, month_level_pairs = read_data(target, window, submissions)
+                for weight in weights:
+                    # Load metrics dict if it exists otherwise create it
+                    metrics_dict = load_metrics_dict(submissions, target, weight, save_to)
+                    
+                    window_start = time.time()
+                    (save_to / f"{weight}" / target / f"window={window}").mkdir(
+                        parents=True, exist_ok=True
+                    )
+                    process_data(
+                        target, window, samples_dict, month_level_pairs, save_to, expected_samples, weight, metrics_dict
+                    )
+                    window_time = time.time() - window_start
+                    logger.info(f"Completed {target} {window} ({weight}) in {window_time:.2f} seconds")
+                    pbar.update(1)
     total_time = time.time() - start_time
     logger.info(f"Total processing time: {total_time:.2f} seconds")
 
-
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Make an ensemble of the submissions.")
     parser.add_argument(
         "-s",
@@ -201,6 +341,7 @@ if __name__ == "__main__":
         "-t",
         metavar="targets",
         type=str,
+        nargs="+",
         default=["cm", "pgm"],
         help="Targets to make an ensemble for",
     )
@@ -208,6 +349,7 @@ if __name__ == "__main__":
         "-w",
         metavar="windows",
         type=str,
+        nargs="+",
         default=[
             "Y2018",
             "Y2019",
@@ -231,9 +373,15 @@ if __name__ == "__main__":
         "-we",
         metavar="weights",
         type=str,
-        default=None,
+        nargs="+",
+        default=["unweighted", "weighted", "selected"],
         help="Weights to use for the ensemble",
     )
     args = parser.parse_args()
 
-    make_ensemble(args.s, args.st, args.t, args.w, args.es)
+    make_ensemble(args.s, args.st, args.t, args.w, args.es, args.we)
+
+
+if __name__ == "__main__":
+    mp.set_start_method("spawn")
+    main()
