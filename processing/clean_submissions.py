@@ -1,16 +1,18 @@
-from utils.utilities import list_submissions, get_target_data, remove_duplicated_indexes, TargetType
-from utils.set_logger import set_logger
-import os
-from pathlib import Path
-import pandas as pd
 import argparse
-import xarray as xr
-import pyarrow
+import os
+import shutil
+from pathlib import Path
+
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+import pyarrow
+import xarray as xr
 from scipy.signal import resample
 from tqdm import tqdm
-import shutil
+
+from utils.utilities import list_submissions, get_target_data, remove_duplicated_indexes, TargetType
+from utils.set_logger import set_logger
 
 logger = set_logger('clean_logger', 'logs/clean_submissions.log')
 

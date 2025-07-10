@@ -1,8 +1,10 @@
-import pandas as pd
-from pathlib import Path
-from tqdm import tqdm
-import shutil
 import argparse
+import shutil
+from pathlib import Path
+
+import pandas as pd
+from tqdm import tqdm
+
 from utils.utilities import list_submissions
 from utils.set_logger import set_logger
 

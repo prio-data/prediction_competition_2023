@@ -1,17 +1,19 @@
+import argparse
+import os
+import time
 from pathlib import Path
+
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
+import pyarrow
+import xarray
+from scipy.signal import resample
+from tqdm import tqdm
+
 from evaluation.CompetitionEvaluation import structure_data, calculate_metrics
 from utils.utilities import list_submissions, get_target_data, TargetType, reformat_output
 from utils.set_logger import set_logger
-import os
-import xarray
-import numpy as np
-import numpy.typing as npt
-from scipy.signal import resample
-import argparse
-import pandas as pd
-import pyarrow
-import time
-from tqdm import tqdm
 
 logger = set_logger('evaluate_logger', 'logs/evaluate_submission.log')
 
