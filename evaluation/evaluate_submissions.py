@@ -170,10 +170,10 @@ def evaluate_submission(
     logger.info(f"Evaluating {submission.name}")
     for target in targets:
         all_window = []
-        for window in windows:
-            if any(
-                (submission / target).glob("**/*.parquet")
-            ):  # test if there are prediction files in the target
+        if any(
+            (submission / target).glob("**/*.parquet")
+        ):  # test if there are prediction files in the target
+            for window in windows:
                 logger.info(f"Target: {target}, Window: {window}")
                 observed_df, pred_df = match_forecast_with_actuals(
                     submission, actuals, target, window
@@ -246,24 +246,26 @@ def evaluate_all_submissions(
     submissions = list_submissions(submissions)
     actuals = Path(actuals)
 
-    for submission in tqdm(submissions, desc="Evaluating submissions"):
-        try:
-            evaluate_submission(
-                submission,
-                actuals,
-                targets,
-                windows,
-                expected,
-                bins,
-                draw_column,
-                data_column,
-                reformat,
-                save_to,
-                file_format
-            )
-        except Exception as e:
-            logger.error(f"{str(e)}")
-            raise
+    with tqdm(total=len(submissions), desc="Evaluating submissions") as pbar:
+        for submission in submissions:
+            try:
+                evaluate_submission(
+                    submission,
+                    actuals,
+                    targets,
+                    windows,
+                    expected,
+                    bins,
+                    draw_column,
+                    data_column,
+                    reformat,
+                    save_to,
+                    file_format
+                )
+                pbar.update(1)
+            except Exception as e:
+                logger.error(f"{str(e)}")
+                raise
 
 
 def main():
