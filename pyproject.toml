@@ -1,20 +1,31 @@
 [tool.poetry]
-name = "my project"
+name = "prediction_competition_2023"
 version = "0.1.0"
-description = "A short description of my project"
+description = "Evaluation package for the ViEWS Prediction Challenge"
 authors = ["name <person@prio.org>"]
 license = "Choose a license"
 readme = "readme.md"
+packages = [
+    { include = "evaluation" },
+    { include = "utils" },
+    { include = "ensemble" },
+    { include = "plotting" },
+    { include = "processing" },
+]
 
 [tool.poetry.dependencies]
 python = "~3.10"
+wheel = "^0.41.0"
+numpy = "^1.24"
+pandas = "^2.1.0"
+scipy = "^1.10.0"
+pyarrow = "^13.0.0"
+tqdm = "^4.65.0"
 nbsphinx = "^0.9.2"
 furo = "^2023.7.26"
 myst-parser = "^2.0.0"
 sphinx-inline-tabs = "^2023.4.21"
 sphinx-copybutton = "^0.5.2"
-numpy = "^1.24"
-pandas = "^2.1.0"
 ipykernel = "^6.25.2"
 sphinx = "^7.2.6"
 ipython = "^8.15.0"
@@ -23,10 +34,9 @@ numba = "^0.57.1"
 xskillscore = "^0.0.24"
 pathlib = "^1.0.1"
 pyyaml = "^6.0.1"
-pyarrow = "^13.0.0"
 openpyxl = "^3.1.2"
-seaborn = {extras = ["stats"], version = "^0.13.0"}
+seaborn = { extras = ["stats"], version = "^0.13.0" }
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core", "setuptools", "wheel"]
 build-backend = "poetry.core.masonry.api"

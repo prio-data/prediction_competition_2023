@@ -9,7 +9,8 @@ import argparse
 
 import logging
 logging.getLogger(__name__)
-logging.basicConfig(filename='test_compliance.log', encoding='utf-8', level=logging.INFO)
+logging.basicConfig(filename='logs/test_compliance.log', encoding='utf-8', level=logging.INFO)
+
 
 def compliant_yaml(submission: str|os.PathLike): 
     try:

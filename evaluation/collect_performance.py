@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import argparse
 
-from utilities import (
+from utils.utilities import (
     list_submissions,
     get_target_data,
     views_month_id_to_year,
@@ -271,4 +271,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    evaluation_table(submissions=args.s, target=args.tt, groupby=args.g, save_to=args.o,aggregate_submissions=True)
+    evaluation_table(submissions=args.s, target=args.tt, groupby=args.g, save_to=args.o, aggregate_submissions=True)
