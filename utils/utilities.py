@@ -315,7 +315,9 @@ def match_actual_prediction_index(actuals, predictions):
 
     # match target range
     predictions_unit = predictions.index.get_level_values(1)
+    print('predictions_unit',predictions_unit.unique())
     actuals_unit = actuals.index.get_level_values(1)
+    print('actuals_unit',actuals_unit.unique())
     if predictions_unit.unique().difference(actuals_unit.unique()).any():
         # logging.warning(f"Target range mismatch! Prediction unit values "
         #                 f"{predictions_unit.unique().difference(actuals_unit.unique()).tolist()} "

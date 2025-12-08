@@ -3,7 +3,7 @@ from pathlib import Path
 
 def set_logger(name: str, log_file: str):
     # Get workspace root directory
-    project_root = Path('/Users/xiaolong/prediction_competition_2023')
+    project_root = Path('')
     log_dir = project_root / 'logs'
     log_dir.mkdir(exist_ok=True)
     

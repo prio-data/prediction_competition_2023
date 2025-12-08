@@ -62,7 +62,7 @@ def structure_data(
     """
 
     # The samples must be named "member" and the outcome variable needs to be named the same in xs.crps_ensemble()
-
+    print(predictions.head())
     if predictions.index.names != [None]:
         predictions = predictions.reset_index()
     if observed.index.names != [None]:
@@ -88,7 +88,9 @@ def structure_data(
         TypeError("priogrid_gid or country_id must be an identifier")
 
     # Some groups have multiple values for the same index, this function removes duplicates.
+    print('predictions df before de-duplication:', predictions.head(20))
     predictions = remove_duplicated_indexes(predictions)
+    print('predictions df after de-duplication:', predictions.head(20))
     observed, predictions = match_actual_prediction_index(observed, predictions)
 
     # Convert to xarray

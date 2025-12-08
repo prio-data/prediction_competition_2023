@@ -170,6 +170,7 @@ def evaluate_submission(
 
     submission = Path(submission)
     logger.info(f"Evaluating {submission.name}")
+    print(f"Evaluating {submission.name}")
     for target in targets:
         all_window = []
         if any(
@@ -247,6 +248,7 @@ def evaluate_all_submissions(
     submissions = Path(submissions)
     submissions = list_submissions(submissions)
     actuals = Path(actuals)
+    print(submissions)
 
     with tqdm(total=len(submissions), desc="Evaluating submissions") as pbar:
         for submission in submissions:
